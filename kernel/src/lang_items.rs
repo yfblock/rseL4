@@ -1,26 +1,16 @@
 use core::panic::PanicInfo;
 
-use polyhal::{hart_id, shutdown};
-
-use crate::console::println;
+use crate::{console::println, driver::system_off};
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     if let Some(location) = info.location() {
         println!(
-            "\x1b[1;31m[Core {}] [{}:{}]\x1b[0m",
-            hart_id(),
+            "\x1b[1;31m [{}:{}]\x1b[0m",
             location.file(),
             location.line(),
         );
     }
-    println!(
-        "\x1b[1;31m[Core {}] panic: '{}'\x1b[0m",
-        hart_id(),
-        info.message().unwrap()
-    );
-    // backtrace();
-    println!("!TEST FINISH!");
-    // loop {}
-    shutdown()
+    println!("\x1b[1;31m panic: '{}'\x1b[0m", info.message());
+    system_off()
 }

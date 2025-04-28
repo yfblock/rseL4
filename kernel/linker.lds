@@ -1,41 +1,46 @@
-OUTPUT_ARCH({{arch}})
 ENTRY(_start)
 
-BASE_ADDRESS = {{kernel_base}};
+PROVIDE(KERNEL_OFFSET = 0xffff000000000000);
+PROVIDE(START_ADDR = %START_ADDR%);
 
 SECTIONS
 {
     /* Load the kernel at this address: "." means the current address */
-    . = BASE_ADDRESS;
-    start = .;
+    . = START_ADDR;
     _skernel = .;
 
-    .text ALIGN(4K): {
+    .boot . : AT(ADDR(.boot) - KERNEL_OFFSET)
+    {
+        *(.boot.text)
+        *(.boot.rodata)
+        *(.boot.data)
+        . = ALIGN(64K);
+    }
+    . = ALIGN(4K);
+    ki_boot_end = .;
+
+    .text . : AT(ADDR(.text) - KERNEL_OFFSET) {
         stext = .;
         *(.text.entry)
         *(.text .text.*)
         etext = .;
     }
 
-    .rodata ALIGN(4K): {
+    .rodata . : AT(ADDR(.rodata) - KERNEL_OFFSET) {
         srodata = .;
         *(.rodata .rodata.*)
         . = ALIGN(4K);
         erodata = .;
     }
 
-    .data ALIGN(4K): {
-        . = ALIGN(4K);
-        *(.data.prepage .data.prepage.*)
-        . = ALIGN(4K);
+    .data . : AT(ADDR(.data) - KERNEL_OFFSET)  {
         _sdata = .;
         *(.data .data.*)
         *(.sdata .sdata.*)
         _edata = .;
     }
-    _load_end = .;
 
-    .bss ALIGN(4K): {
+    .bss . : AT(ADDR(.bss) - KERNEL_OFFSET)  {
         *(.bss.stack)
         _sbss = .;
         *(.bss .bss.*)
@@ -43,7 +48,9 @@ SECTIONS
         _ebss = .;
     }
 
-    PROVIDE(end = .);
+    . = ALIGN(4K);
+    ki_end = .;
+    PROVIDE(_ekernel = .);
     /DISCARD/ : {
         *(.comment) *(.gnu*) *(.note*) *(.eh_frame*)
     }

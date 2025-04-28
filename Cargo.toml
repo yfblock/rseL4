@@ -1,7 +1,4 @@
-[patch."https://github.com/Byte-OS/polyhal.git".polyhal]
-path = "crates/polyhal"
-
 [workspace]
 default-members = ["kernel"]
-members = ["kernel", "crates/polyhal"]
+members = ["example", "kernel"]
 resolver = "2"

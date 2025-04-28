@@ -1,3 +1,7 @@
 /target
 /kernel/*.lds
+!/kernel/linker.lds
 /qemu.log
+
+build
+kernel.elf

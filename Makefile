@@ -70,9 +70,14 @@ fs-img:
 env:
 	rustup component add llvm-tools-preview
 
+.PHONY: build example
 build:
-	cargo build --release --target $(TARGET)
+	cargo build --release --target $(TARGET) -p rsel4
 	rust-objcopy --binary-architecture=$(ARCH) $(KERNEL_ELF) --strip-all -O binary $(KERNEL_BIN)
+
+example:
+	cargo build --release --target $(TARGET) -p example
+	rust-objcopy --binary-architecture=$(ARCH) target/$(TARGET)/$(RELEASE)/example --strip-all -O binary target/$(TARGET)/$(RELEASE)/example.bin
 
 run: build
 	$(QEMU_EXEC)
@@ -93,5 +98,30 @@ clean:
 fmt:
 	cargo fmt
 	cd users && cargo fmt
+
+test: build example
+	cp $(KERNEL_ELF) build/bin/kernel.elf
+	SEL4_PREFIX=$(realpath build) cargo install \
+		-Z build-std=core,compiler_builtins \
+		-Z build-std-features=compiler-builtins-mem \
+		--target aarch64-unknown-none \
+		--git https://github.com/reL4team2/rust-sel4.git \
+		--rev 642b58d807c5e5fc22f0c15d1467d6bec328faa9 \
+		--root build/ \
+		sel4-kernel-loader
+	sel4-kernel-loader-add-payload \
+		--loader build/bin/sel4-kernel-loader \
+		--sel4-prefix build/ \
+		--app target/$(TARGET)/$(RELEASE)/example \
+		-o kernel.elf
+	qemu-system-aarch64 \
+		-machine virt \
+		-machine virtualization=on\
+		-cpu cortex-a72 \
+		-kernel kernel.elf \
+		-m 1G \
+		-nographic \
+		-serial mon:stdio \
+		-D qemu.log -d in_asm,int,pcall,cpu_reset,guest_errors
 
 .PHONY: all run build clean fmt
