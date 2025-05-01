@@ -124,4 +124,11 @@ test: build example
 		-serial mon:stdio \
 		-D qemu.log -d in_asm,int,pcall,cpu_reset,guest_errors
 
+# 根据 BF 文件生成对应的代码
+# 如果需要修改宏信息，可以在 generator 中修改
+kernel/src/object/structures.rs: crates/sel4-types/structures.bf tools/generator.py
+	python3 tools/generator.py $< $@
+
+bf: kernel/src/object/structures.rs
+
 .PHONY: all run build clean fmt

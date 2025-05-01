@@ -1,3 +1,5 @@
+pub mod structures;
+
 use core::ops::{Deref, DerefMut};
 
 /// Mapping Database Node
