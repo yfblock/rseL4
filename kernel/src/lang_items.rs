@@ -1,6 +1,6 @@
 use core::panic::PanicInfo;
 
-use crate::{console::println, driver::system_off};
+use crate::driver::system_off;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {

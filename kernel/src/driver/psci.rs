@@ -50,7 +50,7 @@ impl From<i32> for PsciError {
 }
 
 /// arm,psci method: smc
-/// when SMCCC_CONDUIT_SMC = 1
+#[inline]
 fn arm_smccc_smc(func: u32, arg0: usize, arg1: usize, arg2: usize) -> usize {
     let mut ret;
     unsafe {
@@ -66,6 +66,7 @@ fn arm_smccc_smc(func: u32, arg0: usize, arg1: usize, arg2: usize) -> usize {
 }
 
 /// psci "hvc" method call
+#[inline]
 fn psci_hvc_call(func: u32, arg0: usize, arg1: usize, arg2: usize) -> usize {
     let ret;
     unsafe {

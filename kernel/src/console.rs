@@ -10,20 +10,20 @@ impl Write for Console {
 }
 
 /// Print macro to print format without newline.
-#[allow(unused_macros)]
-pub(crate) macro print($fmt: expr $(, $($arg: tt)+)?) {
-    $crate::console::_print(format_args!($fmt $(, $($arg)+)?))
+macro_rules! print {
+    ($fmt:expr $(, $($arg: tt)+)?) => {
+        $crate::console::_print(format_args!($fmt $(, $($arg)+)?))
+    }
 }
 
 /// Print macro to print format with newline
-#[allow(unused_macros)]
-pub(crate) macro println {
+macro_rules! println {
     () => {
-        $crate::console::_print(format_args!("\n"))
-    },
+        print!("\n")
+    };
     ($fmt: expr $(, $($arg: tt)+)?) => {
-        $crate::console::_print(format_args!("{}\n", format_args!($fmt $(, $($arg)+)?)))
-    },
+        print!("{}\n", format_args!($fmt $(, $($arg)+)?))
+    };
 }
 
 /// Print the given arguments
@@ -42,12 +42,13 @@ impl log::Log for Console {
         use log::Level;
         let module = record.module_path();
         let line = record.line();
+        // ANSI Color Code: https://i.sstatic.net/9UVnC.png
         let color_code = match record.level() {
-            Level::Error => 31u8, // Red
-            Level::Warn => 93,    // BrightYellow
-            Level::Info => 32,    // Blue
-            Level::Debug => 36,   // Green
-            Level::Trace => 90,   // BrightBlack
+            Level::Error => 31u8,
+            Level::Warn => 93,
+            Level::Info => 32,
+            Level::Debug => 36,
+            Level::Trace => 90,
         };
         println!(
             "\u{1B}[{}m\

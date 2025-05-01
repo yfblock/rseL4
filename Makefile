@@ -79,9 +79,6 @@ example:
 	cargo build --release --target $(TARGET) -p example
 	rust-objcopy --binary-architecture=$(ARCH) target/$(TARGET)/$(RELEASE)/example --strip-all -O binary target/$(TARGET)/$(RELEASE)/example.bin
 
-run: build
-	$(QEMU_EXEC)
-
 fdt:
 	$(QEMU_EXEC) -machine virt,dumpdtb=virt.out
 	fdtdump virt.out

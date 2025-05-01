@@ -1,4 +1,7 @@
 [workspace]
 default-members = ["kernel"]
-members = ["example", "kernel"]
+members = ["crates/hal", "example", "kernel"]
 resolver = "2"
+
+[workspace.dependencies]
+hal = { path = "crates/hal" }

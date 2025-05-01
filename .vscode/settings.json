@@ -1,8 +1,8 @@
 {
-    "rust-analyzer.checkOnSave.allTargets": false,
-    "rust-analyzer.checkOnSave.extraArgs": [
-        // "--target",
-        // "riscv64imac-unknown-none-elf"
-        // "x86_64-unknown-none"
-    ],
+    "rust-analyzer.cargo.allTargets": false,
+    "rust-analyzer.cargo.target": "aarch64-unknown-none-softfloat",
+    "rust-analyzer.files.exclude": ["qemu.log"],
+    "[rust]": {
+        "editor.formatOnSave": true
+    }
 }

@@ -3,13 +3,15 @@
 use arm_pl011::Pl011Uart;
 use spin::Mutex;
 
-use crate::console::Console;
+use crate::{arch::PhysAddr, console::Console};
 
-// const UART_BASE: PhysAddr = pa!(0x0900_0000);
-static UART: Mutex<Pl011Uart> = Mutex::new(Pl011Uart::new(0x0900_0000 as _));
+const PL011_UART: PhysAddr = pa!(0x0900_0000);
+
+static UART: Mutex<Pl011Uart> = Mutex::new(Pl011Uart::new(PL011_UART.vaddr().raw() as _));
 
 impl Console {
     /// Writes a byte to the console.
+    #[inline]
     pub fn putchar(c: u8) {
         match c {
             b'\n' => {
@@ -20,6 +22,7 @@ impl Console {
         }
     }
 
+    #[inline]
     pub fn init_uart() {
         UART.lock().init();
     }

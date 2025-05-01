@@ -1,6 +1,6 @@
 ENTRY(_start)
 
-PROVIDE(KERNEL_OFFSET = 0xffff000000000000);
+PROVIDE(KERNEL_OFFSET = 0xffffff8000000000);
 PROVIDE(START_ADDR = %START_ADDR%);
 
 SECTIONS
@@ -41,8 +41,8 @@ SECTIONS
     }
 
     .bss . : AT(ADDR(.bss) - KERNEL_OFFSET)  {
-        *(.bss.stack)
         _sbss = .;
+        *(.bss.stack)
         *(.bss .bss.*)
         *(.sbss .sbss.*)
         _ebss = .;
