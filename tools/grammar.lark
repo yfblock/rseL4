@@ -1,0 +1,19 @@
+start: (block | tagged_union | COMMENT)*
+
+COMMENT: /--[^\n]*/
+
+block: "block" NAME param_list? "{" field* "}"
+param_list: "(" [NAME ("," NAME)*] ")"
+
+tagged_union: "tagged_union" NAME NAME "{" tag* "}"
+tag: "tag" NAME INT
+
+field: "field_high" NAME INT        -> field_high
+     | "field" NAME INT             -> field
+     | "padding" INT                -> padding
+
+%import common.CNAME -> NAME
+%import common.INT
+%import common.WS
+%ignore WS
+%ignore COMMENT

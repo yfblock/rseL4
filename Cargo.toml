@@ -1,6 +1,6 @@
 [workspace]
 default-members = ["kernel"]
-members = ["crates/hal", "example", "kernel"]
+members = ["crates/hal", "crates/sel4-types", "example", "kernel"]
 resolver = "2"
 
 [workspace.dependencies]
