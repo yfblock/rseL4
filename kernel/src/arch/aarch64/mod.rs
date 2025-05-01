@@ -3,8 +3,13 @@ mod macros;
 
 mod boot;
 mod cpu;
+mod objects;
 mod traps;
 mod vspace;
+
+pub use objects::{ArchTCB, UserContext};
+
+const CONTEXT_REGS_NUM: usize = 37;
 
 /// 指向起始物理内存的虚拟地址
 pub const PPTR_BASE: usize = 0xFFFF_FF80_0000_0000;

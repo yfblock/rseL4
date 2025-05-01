@@ -96,9 +96,12 @@ fmt:
 	cargo fmt
 	cd users && cargo fmt
 
+# 在安装 sel4-kernel-loader 的时候需要指定 CC
+# 否则会使用默认的 GCC，如果 host 是 x86_64 那么就会无法编译出对应架构的代码
+# 参考链接： https://docs.rs/cc/latest/cc/
 test: build example
 	cp $(KERNEL_ELF) build/bin/kernel.elf
-	SEL4_PREFIX=$(realpath build) cargo install \
+	CC=aarch654-linux-gnu-gcc SEL4_PREFIX=$(realpath build) cargo install \
 		-Z build-std=core,compiler_builtins \
 		-Z build-std-features=compiler-builtins-mem \
 		--target aarch64-unknown-none \
@@ -120,5 +123,12 @@ test: build example
 		-nographic \
 		-serial mon:stdio \
 		-D qemu.log -d in_asm,int,pcall,cpu_reset,guest_errors
+
+# 根据 BF 文件生成对应的代码
+# 如果需要修改宏信息，可以在 generator 中修改
+kernel/src/object/structures.rs: crates/sel4-types/structures.bf tools/generator.py
+	python3 tools/generator.py $< $@
+
+bf: kernel/src/object/structures.rs
 
 .PHONY: all run build clean fmt

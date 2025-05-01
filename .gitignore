@@ -2,6 +2,7 @@
 /kernel/*.lds
 !/kernel/linker.lds
 /qemu.log
+kernel/src/object/structures.rs
 
 build
 kernel.elf
