@@ -1,4 +1,7 @@
+pub mod fault;
+pub mod ipc;
 pub mod structures;
+pub mod tcb;
 
 use core::ops::{Deref, DerefMut};
 

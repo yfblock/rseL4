@@ -26,17 +26,17 @@ NEW_FUNC_TEMPLATE = """
     }
 """
 
-# 参数顺序 (field名称，idx 顺序，MASK, RightShiftSize)
+# 参数顺序 (field名称，返回类型, idx 顺序，MASK, RightShiftSize)
 GET_FUNC_TEMPLATE = """
-    pub const fn get_%s(&self) -> usize {
-        (self.0[%d] & 0x%X) >> %d
+    pub const fn get_%s(&self) -> %s {
+        ((self.0[%d] & 0x%X) >> %d) as _
     }
 """
 
-# 参数顺序 (field名称，idx 顺序，idx 顺序，MASK，LeftShiftSize)
+# 参数顺序 (field名称，参数类型, idx 顺序，idx 顺序，MASK，LeftShiftSize)
 SET_FUNC_TEMPLATE = """
-    pub const fn set_%s(&mut self, value: usize) {
-        self.0[%d] = self.0[%d] & !0x%X | (value << %d)
+    pub const fn set_%s(&mut self, value: %s) {
+        self.0[%d] = self.0[%d] & !0x%X | ((value as usize) << %d)
     }
 """
 
@@ -100,6 +100,11 @@ def trans_data(source_file):
     all_data = ""
     tree = parser.parse(getStructure(source_file))
     tree = BFTransformer().transform(tree)
+    tagged = {}
+    for x in tree.children:
+        if x['type'] != 'tagged_union':
+            continue
+        tagged[x['tag_field']] = camelize(x['name'])
     for i in tree.children:
         if i["type"] == "block":
             len = sum(field["bits"] for field in i["fields"])
@@ -115,6 +120,7 @@ def trans_data(source_file):
             idx = 0
             for field in reversed(i["fields"]):
                 field_type = field["type"]
+                arg_type = "usize"
 
                 bit_mask = 0
                 shift = idx % USIZE_WIDTH
@@ -147,12 +153,14 @@ def trans_data(source_file):
                 field_name = underscore(field["name"])
                 declare += GET_FUNC_TEMPLATE % (
                     field_name,
+                    arg_type,
                     idx / USIZE_WIDTH,
                     bit_mask,
                     shift,
                 )
                 declare += SET_FUNC_TEMPLATE % (
                     field_name,
+                    arg_type,
                     idx / USIZE_WIDTH,
                     idx / USIZE_WIDTH,
                     bit_mask,
