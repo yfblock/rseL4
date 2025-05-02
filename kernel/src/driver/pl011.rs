@@ -7,7 +7,7 @@ use crate::{arch::PhysAddr, console::Console};
 
 const PL011_UART: PhysAddr = pa!(0x0900_0000);
 
-static UART: Mutex<Pl011Uart> = Mutex::new(Pl011Uart::new(PL011_UART.vaddr().raw() as _));
+static UART: Mutex<Pl011Uart> = Mutex::new(Pl011Uart::new(PL011_UART.pptr().raw() as _));
 
 impl Console {
     /// Writes a byte to the console.

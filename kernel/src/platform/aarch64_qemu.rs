@@ -1,6 +1,11 @@
-use crate::arch::{PPTR_BASE, PPTR_TOP};
+use crate::arch::{PhysRegion, VirtAddr, PPTR_BASE, PPTR_TOP};
 
 /// 平台物理内存起始地址
 pub const PADDR_BASE: usize = 0;
+pub const PADDR_ELF_ADDR: usize = 0x4000_0000;
 /// 物理内存 TOP 地址
 pub const PADDR_TOP: usize = PPTR_TOP - PPTR_BASE;
+
+pub const USER_TOP: VirtAddr = va!(0xa0000000);
+
+pub const PLAT_MEM_REGIONS: &[PhysRegion] = &[PhysRegion::new(pa!(0x4000_0000), pa!(0x8000_0000))];

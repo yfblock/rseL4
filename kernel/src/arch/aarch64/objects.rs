@@ -1,9 +1,9 @@
-use super::CONTEXT_REGS_NUM;
+use super::NUM_CONTEXT_REGS;
 
 pub struct ArchTCB {
     context: UserContext,
 }
 
 pub struct UserContext {
-    regs: [usize; CONTEXT_REGS_NUM],
+    regs: [usize; NUM_CONTEXT_REGS],
 }

@@ -9,6 +9,7 @@ pub mod console;
 #[macro_use]
 pub mod arch;
 
+pub mod boot;
 pub mod config;
 pub mod driver;
 mod lang_items;

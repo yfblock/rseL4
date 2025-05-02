@@ -1,3 +1,4 @@
+pub mod boot_info;
 pub mod fault;
 pub mod ipc;
 pub mod structures;

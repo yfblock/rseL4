@@ -2,14 +2,21 @@
 mod macros;
 
 mod boot;
+mod consts;
 mod cpu;
+mod mem;
 mod objects;
 mod traps;
 mod vspace;
 
+pub use consts::*;
 pub use objects::{ArchTCB, UserContext};
 
-const CONTEXT_REGS_NUM: usize = 37;
+const NUM_CONTEXT_REGS: usize = 37;
+
+const NUM_RESERVED_REGIONS: usize = 12;
+
+const PAGE_SIZE: usize = bit!(PAGE_BITS);
 
 /// 指向起始物理内存的虚拟地址
 pub const PPTR_BASE: usize = 0xFFFF_FF80_0000_0000;
@@ -19,7 +26,3 @@ pub const PPTR_TOP: usize = 0xFFFF_FFFF_C000_0000;
 pub const KERNEL_PT_BASE: usize = 0xFFFF_FFFF_FFE0_0000;
 /// 为 [KERNEL_PT_BASE] 设置的别名
 pub const KDEV_BASE: usize = KERNEL_PT_BASE;
-/// VSpace 大小
-pub const VSPACE_BITS: usize = 12;
-/// VSpace 索引大小
-pub const VSPACE_INDEX_BITS: usize = 9;

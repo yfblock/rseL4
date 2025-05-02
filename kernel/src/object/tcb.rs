@@ -5,17 +5,16 @@ use super::{
     structures::Notification,
 };
 
-/* TCB: size >= 18 words + sizeof(arch_tcb_t) + 1 word on MCS (aligned to nearest power of 2) */
+/// TCB: size >= 18 words + sizeof(arch_tcb_t) + 1 word on MCS (aligned to nearest power of 2)
 struct TCB {
-    /* arch specific tcb state (including context)*/
+    /// arch specific tcb state (including context)
     arch: ArchTCB,
 
-    /* Thread state, 3 words */
+    /// Thread state, 3 words
     state: ThreadState,
 
-    /* Notification that this TCB is bound to. If this is set, when this TCB waits on
-     * any sync endpoint, it may receive a signal from a Notification object.
-     * 1 word*/
+    /// Notification that this TCB is bound to. If this is set, when this TCB waits on
+    /// any sync endpoint, it may receive a signal from a Notification object. 1 word
     bound_notification: *mut Notification,
 
     /// Current fault, 2 words
@@ -45,11 +44,10 @@ struct TCB {
     //     /* cpu ID this thread is running on, 1 word */
     //     word_t tcbAffinity;
     // #endif /* ENABLE_SMP_SUPPORT */
-
-    // /* Previous and next pointers for scheduler queues , 2 words */
-    // struct tcb *tcbSchedNext;
-    // struct tcb *tcbSchedPrev;
-    // /* Previous and next pointers for endpoint and notification queues, 2 words */
-    // struct tcb *tcbEPNext;
-    // struct tcb *tcbEPPrev;
+    /// Previous and next pointers for scheduler queues , 2 words
+    sched_next: *mut Self,
+    sched_prev: *mut Self,
+    /// Previous and next pointers for endpoint and notification queues, 2 words
+    ep_next: *mut Self,
+    ep_prev: *mut Self,
 }

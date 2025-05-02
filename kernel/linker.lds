@@ -49,7 +49,6 @@ SECTIONS
     }
 
     . = ALIGN(4K);
-    ki_end = .;
     PROVIDE(_ekernel = .);
     /DISCARD/ : {
         *(.comment) *(.gnu*) *(.note*) *(.eh_frame*)
