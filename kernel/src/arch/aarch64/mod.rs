@@ -10,6 +10,7 @@ mod traps;
 mod vspace;
 
 pub use consts::*;
+pub use mem::arch_get_n_paging;
 pub use objects::{ArchTCB, UserContext};
 
 const NUM_CONTEXT_REGS: usize = 37;

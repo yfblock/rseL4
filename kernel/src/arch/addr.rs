@@ -2,11 +2,23 @@ use core::fmt::Debug;
 
 use super::PPTR_BASE;
 
+macro_rules! pa {
+    ($addr:expr) => {
+        $crate::arch::PhysAddr::new(($addr) as usize)
+    };
+}
+
+macro_rules! va {
+    ($addr:expr) => {
+        $crate::arch::VirtAddr::new(($addr) as usize)
+    };
+}
+
 #[repr(C)]
-#[derive(Clone, Copy, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PhysAddr(usize);
 #[repr(C)]
-#[derive(Clone, Copy, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
 pub struct VirtAddr(usize);
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
@@ -102,14 +114,11 @@ impl PhysRegion {
     }
 }
 
-macro_rules! pa {
-    ($addr:expr) => {
-        $crate::arch::PhysAddr::new(($addr) as usize)
-    };
-}
-
-macro_rules! va {
-    ($addr:expr) => {
-        $crate::arch::VirtAddr::new(($addr) as usize)
-    };
+impl VirtRegion {
+    pub const fn paddr(&self) -> PhysRegion {
+        PhysRegion {
+            start: pa!(self.start.0),
+            end: pa!(self.end.0),
+        }
+    }
 }
