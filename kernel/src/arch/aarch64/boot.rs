@@ -4,12 +4,11 @@ use crate::{
         aarch64::{cpu, vspace::map_kernel_window, PAGE_SIZE},
         PhysAddr, PhysRegion, VirtRegion,
     },
-    boot::{init_free_mem, BOOT_INFO_FRAME_BITS},
+    boot::{init_free_mem, RootServerMem, BOOT_INFO_FRAME_BITS},
     driver::system_off,
     platform::{PLAT_MEM_REGIONS, USER_TOP},
 };
 use core::arch::naked_asm;
-use spin::Once;
 
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
@@ -94,6 +93,8 @@ extern "C" fn main(
     // }
 
     // TODO: 添加设备树相关的信息
+    // TODO: 为 BootInfo 添加额外的信息
+    let extra_bi_size_bits = 0;
     let it_v_reg = VirtRegion::new(ui_v_reg.start, extra_bi_frame_vptr);
 
     if it_v_reg.end >= USER_TOP {
@@ -104,13 +105,16 @@ extern "C" fn main(
             USER_TOP.raw()
         );
     }
-    arch_init_free_mem(ui_p_reg, it_v_reg);
+    let root_server_mem = arch_init_free_mem(ui_p_reg, it_v_reg, extra_bi_size_bits);
+
     system_off();
 }
 
-static mut RESERVED: Once<[VirtRegion; NUM_RESERVED_REGIONS]> = Once::new();
-
-pub fn arch_init_free_mem(ui_p_reg: PhysRegion, it_v_region: VirtRegion) {
+pub fn arch_init_free_mem(
+    ui_p_reg: PhysRegion,
+    it_v_region: VirtRegion,
+    extra_bi_size_bits: usize,
+) -> RootServerMem {
     let mut reserved = [VirtRegion::empty(); NUM_RESERVED_REGIONS];
     /* reserve the kernel image region */
     reserved[0] = get_kernel_img_phys_region().pptr();
@@ -121,10 +125,10 @@ pub fn arch_init_free_mem(ui_p_reg: PhysRegion, it_v_region: VirtRegion) {
     reserved[index] = ui_reg;
     index += 1;
 
-    init_free_mem(PLAT_MEM_REGIONS, &reserved[..index], it_v_region);
-
-    // /* avail_p_regs comes from the auto-generated code */
-    // return init_freemem(ARRAY_SIZE(avail_p_regs), avail_p_regs,
-    //                     index, reserved,
-    //                     it_v_reg, extra_bi_size_bits);
+    init_free_mem(
+        PLAT_MEM_REGIONS,
+        &reserved[..index],
+        it_v_region,
+        extra_bi_size_bits,
+    )
 }

@@ -44,6 +44,16 @@ macro_rules! impl_addr {
                 pub const fn raw(&self) -> usize {
                     self.0
                 }
+
+                pub const fn align_up(&self, bits: usize) -> Self {
+                    Self(self.0.div_ceil(bit!(bits)) * bit!(bits))
+                }
+                pub const fn align_down(&self, bits: usize) -> Self {
+                    Self(self.0 & !(bit!(bits) - 1))
+                }
+                pub const fn is_null(&self) -> bool {
+                    self.0 == 0
+                }
             }
 
             impl From<$name> for usize {
@@ -63,7 +73,16 @@ macro_rules! impl_addr {
                     f.write_fmt(format_args!("{}({:#x})", stringify!($name), self.0))
                 }
             }
-
+            impl core::fmt::Display for $name {
+                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    f.write_fmt(format_args!("{:#x}", self.0))
+                }
+            }
+            impl core::fmt::LowerHex for $name {
+                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    core::fmt::LowerHex::fmt(&self.0, f)
+                }
+            }
             impl core::ops::Add<usize> for $name {
                 type Output = Self;
 
@@ -71,8 +90,55 @@ macro_rules! impl_addr {
                     Self(self.0 + rhs)
                 }
             }
+            impl core::ops::Sub<usize> for $name {
+                type Output = Self;
+
+                fn sub(self, rhs: usize) -> Self::Output {
+                    Self(self.0 - rhs)
+                }
+            }
+            impl core::ops::BitAnd<usize> for $name {
+                type Output = Self;
+
+                fn bitand(self, rhs: usize) -> Self::Output {
+                    Self(self.0 & rhs)
+                }
+            }
+            impl core::ops::AddAssign<usize> for $name {
+                fn add_assign(&mut self, rhs: usize) {
+                    self.0 += rhs
+                }
+            }
+            impl core::ops::SubAssign<usize> for $name {
+                fn sub_assign(&mut self, rhs: usize) {
+                    self.0 -= rhs
+                }
+            }
         )*
     };
+}
+
+impl VirtAddr {
+    pub const fn as_ptr<T>(&self) -> *const T {
+        self.0 as _
+    }
+    pub const fn as_mut_ptr<T>(&self) -> *mut T {
+        self.0 as _
+    }
+}
+
+impl VirtRegion {
+    pub fn alloc_rootserver_obj(&mut self, size_bits: usize, num: usize) -> VirtAddr {
+        let allocated = self.start;
+        self.start += num * bit!(size_bits);
+        assert!(allocated.raw() % bit!(size_bits) == 0);
+        assert!(self.start <= self.end);
+
+        unsafe {
+            core::ptr::write_bytes(allocated.as_mut_ptr::<u8>(), 0, bit!(size_bits));
+        }
+        return allocated;
+    }
 }
 
 macro_rules! impl_addr_range {

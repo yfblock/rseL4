@@ -1,19 +1,30 @@
-use core::ptr::NonNull;
-
 use crate::{
     arch::{
-        arch_get_n_paging, PhysRegion, VirtRegion, ASID_POOL_BITS, PAGE_BITS, PPTR_TOP, SLOT_BITS,
-        TCB_BITS, VSPACE_BITS,
+        arch_get_n_paging, PhysRegion, VirtAddr, VirtRegion, ASID_POOL_BITS, PAGE_BITS, PPTR_TOP,
+        SLOT_BITS, TCB_BITS, VSPACE_BITS,
     },
     config::ROOT_CNODE_SIZE_BITS,
 };
+use arrayvec::ArrayVec;
+use core::ptr::NonNull;
 
 /// TODO: use dynamic 设置
 const MAX_NUM_RESV_REG: usize = 10;
 /// TODO: use dynamic 设置
 const MAX_NUM_FREEMEM_REG: usize = 10;
-
 pub const BOOT_INFO_FRAME_BITS: usize = 12;
+
+#[derive(Default)]
+pub struct RootServerMem {
+    cnode: VirtAddr,
+    vspace: VirtAddr,
+    asid_pool: VirtAddr,
+    ipc_buf: VirtAddr,
+    boot_info: VirtAddr,
+    extra_bi: VirtAddr,
+    tcb: VirtAddr,
+    paging: VirtRegion,
+}
 
 // pub struct BootInfo {
 //     seL4_Word         extraLen;        /* length of any additional bootinfo information */
@@ -40,19 +51,22 @@ pub const BOOT_INFO_FRAME_BITS: usize = 12;
 pub struct BootInfo {}
 
 pub struct NdksBoot {
-    reserved: [PhysRegion; MAX_NUM_RESV_REG],
+    reserved: ArrayVec<PhysRegion, MAX_NUM_RESV_REG>,
     reserved_count: usize,
-    freemem: [VirtRegion; MAX_NUM_FREEMEM_REG],
-    bi_frarme: NonNull<BootInfo>,
+    freemem: ArrayVec<VirtRegion, MAX_NUM_FREEMEM_REG>,
+    bi_frame: NonNull<BootInfo>,
     slot_pos_cur: usize,
 }
 
 impl NdksBoot {
-    pub fn insert_region(&mut self, region: VirtRegion) {
-        self.freemem
-            .iter_mut()
-            .find(|x| x.is_empty())
-            .map(|x| *x = region);
+    pub const fn empty() -> Self {
+        NdksBoot {
+            reserved: ArrayVec::new_const(),
+            reserved_count: 0,
+            freemem: ArrayVec::new_const(),
+            bi_frame: NonNull::dangling(),
+            slot_pos_cur: 0,
+        }
     }
 
     pub fn reserve_region(&mut self, reg: PhysRegion) {
@@ -107,7 +121,7 @@ impl NdksBoot {
             return;
         }
 
-        self.reserved[self.reserved_count] = reg;
+        self.reserved.push(reg);
         self.reserved_count += 1;
     }
 
@@ -135,20 +149,19 @@ impl NdksBoot {
     }
 }
 
-pub fn init_free_mem(availables: &[PhysRegion], reserveds: &[VirtRegion], it_v_reg: VirtRegion) {
-    let mut ndks_boot = NdksBoot {
-        reserved: [PhysRegion::empty(); MAX_NUM_RESV_REG],
-        reserved_count: 0,
-        freemem: [VirtRegion::empty(); MAX_NUM_FREEMEM_REG],
-        bi_frarme: NonNull::dangling(),
-        slot_pos_cur: 0,
-    };
-    let mut avail_regs = [VirtRegion::empty(); MAX_NUM_FREEMEM_REG];
-    for (region, avail_reg) in availables.iter().zip(avail_regs.iter_mut()) {
-        *avail_reg = region.pptr();
-        avail_reg.start = avail_reg.start.min(va!(PPTR_TOP));
-        avail_reg.end = avail_reg.end.min(va!(PPTR_TOP));
-    }
+pub fn init_free_mem(
+    availables: &[PhysRegion],
+    reserveds: &[VirtRegion],
+    it_v_reg: VirtRegion,
+    extra_bi_size_bits: usize,
+) -> RootServerMem {
+    let mut ndks_boot = NdksBoot::empty();
+    let mut avail_regs = ArrayVec::<VirtRegion, MAX_NUM_FREEMEM_REG>::new();
+    avail_regs.extend(availables.iter().map(|x| x.pptr()));
+    avail_regs.iter_mut().for_each(|x| {
+        x.start = x.start.min(va!(PPTR_TOP));
+        x.end = x.end.min(va!(PPTR_TOP));
+    });
     // Rust 版本的 remove_reserved_regions 逻辑
     let mut a = 0;
     let mut r = 0;
@@ -170,7 +183,7 @@ pub fn init_free_mem(availables: &[PhysRegion], reserveds: &[VirtRegion], it_v_r
             r += 1;
         } else if reserved.start >= avail.end {
             // 保留区域在可用区域之后
-            ndks_boot.insert_region(*avail);
+            ndks_boot.freemem.push(*avail);
             a += 1;
         } else {
             // 有重叠
@@ -180,9 +193,9 @@ pub fn init_free_mem(availables: &[PhysRegion], reserveds: &[VirtRegion], it_v_r
                 // 不前进 r，可能还重叠
             } else {
                 // 分出不重叠前段
-                let mut m = *avail;
-                m.end = reserved.start;
-                ndks_boot.insert_region(m);
+                ndks_boot
+                    .freemem
+                    .push(VirtRegion::new(avail.start, reserved.start));
 
                 if avail.end > reserved.end {
                     // 裁剪后继续处理当前 avail
@@ -195,76 +208,109 @@ pub fn init_free_mem(availables: &[PhysRegion], reserveds: &[VirtRegion], it_v_r
         }
     }
 
-    while r < reserveds.len() {
-        ndks_boot.reserve_region(reserveds[r].paddr());
-        r += 1;
-    }
+    reserveds[r..]
+        .iter()
+        .for_each(|x| ndks_boot.reserve_region(x.paddr()));
 
-    while a < availables.len() {
-        ndks_boot.insert_region(avail_regs[a]);
-        a += 1;
-    }
+    avail_regs[a..]
+        .iter()
+        .for_each(|x| ndks_boot.freemem.push(*x));
 
     log::debug!("a: {}  r: {}", a, r);
-    log::debug!("ndks reserved: {:#x?}", &ndks_boot.reserved[..r]);
-    log::debug!("ndks freemem : {:#x?}", &ndks_boot.freemem[..a]);
+    log::debug!("ndks reserved: {:#x?}", &ndks_boot.reserved);
+    log::debug!("ndks freemem : {:#x?}", &ndks_boot.freemem);
 
-    // word_t a = 0;
-    // word_t r = 0;
-    // /* Now iterate through the available regions, removing any reserved regions. */
-    // while (a < n_available && r < n_reserved) {
-    //     if (reserved[r].start == reserved[r].end) {
-    //         /* reserved region is empty - skip it */
-    //         r++;
-    //     } else if (avail_reg[a].start >= avail_reg[a].end) {
-    //         /* skip the entire region - it's empty now after trimming */
-    //         a++;
-    //     } else if (reserved[r].end <= avail_reg[a].start) {
-    //         /* the reserved region is below the available region - skip it */
-    //         reserve_region(pptr_to_paddr_reg(reserved[r]));
-    //         r++;
-    //     } else if (reserved[r].start >= avail_reg[a].end) {
-    //         /* the reserved region is above the available region - take the whole thing */
-    //         insert_region(avail_reg[a]);
-    //         a++;
-    //     } else {
-    //         /* the reserved region overlaps with the available region */
-    //         if (reserved[r].start <= avail_reg[a].start) {
-    //             /* the region overlaps with the start of the available region.
-    //              * trim start of the available region */
-    //             avail_reg[a].start = MIN(avail_reg[a].end, reserved[r].end);
-    //             /* do not increment reserved index here - there could be more overlapping regions */
-    //         } else {
-    //             assert(reserved[r].start < avail_reg[a].end);
-    //             /* take the first chunk of the available region and move
-    //              * the start to the end of the reserved region */
-    //             region_t m = avail_reg[a];
-    //             m.end = reserved[r].start;
-    //             insert_region(m);
-    //             if (avail_reg[a].end > reserved[r].end) {
-    //                 avail_reg[a].start = reserved[r].end;
-    //                 /* we could increment reserved index here, but it's more consistent with the
-    //                  * other overlapping case if we don't */
-    //             } else {
-    //                 a++;
-    //             }
-    //         }
-    //     }
-    // }
+    // 确保留出一个空位
+    assert!(ndks_boot.freemem.len() < ndks_boot.freemem.capacity());
+
+    let size = calculate_rootserver_size(it_v_reg, extra_bi_size_bits);
+    let max = rootserver_max_size_bits(extra_bi_size_bits);
+
+    let mut i = ndks_boot.freemem.len() - 1;
+    while i as isize >= 0 {
+        let unaligned_start = ndks_boot.freemem[i].end - size;
+        let start = unaligned_start.align_down(max);
+        if unaligned_start <= ndks_boot.freemem[i].end && start >= ndks_boot.freemem[i].start {
+            let root_server_mem = create_rootserver_objects(start, it_v_reg, extra_bi_size_bits);
+
+            ndks_boot.freemem[i].end = start;
+            ndks_boot
+                .freemem
+                .insert(i, VirtRegion::new(start + size, ndks_boot.freemem[i].end));
+            return root_server_mem;
+        }
+        i -= 1;
+    }
+    panic!("No free memory region is big enough for root server");
 }
 
-pub fn calculate_rootserver_size(it_v_reg: VirtRegion) -> usize {
-    let size = bit!(ROOT_CNODE_SIZE_BITS + SLOT_BITS)
+pub fn calculate_rootserver_size(it_v_reg: VirtRegion, extra_bi_size_bits: usize) -> usize {
+    let mut size = bit!(ROOT_CNODE_SIZE_BITS + SLOT_BITS)
         + bit!(TCB_BITS)
         + bit!(PAGE_BITS)
         + bit!(BOOT_INFO_FRAME_BITS)
         + bit!(ASID_POOL_BITS)
         + bit!(VSPACE_BITS);
+    if extra_bi_size_bits > 0 {
+        size += bit!(extra_bi_size_bits);
+    }
     return size + arch_get_n_paging(it_v_reg) * bit!(PAGE_BITS);
 }
 
+#[inline]
+fn rootserver_max_size_bits(extra_bi_size_bits: usize) -> usize {
+    let cnode_size_bits = ROOT_CNODE_SIZE_BITS + SLOT_BITS;
+    let max = cnode_size_bits.max(VSPACE_BITS);
+    max.max(extra_bi_size_bits)
+}
+
 pub const fn get_n_paging(v_reg: VirtRegion, bits: usize) -> usize {
-    let start = v_reg.start.raw() & (bit!(bits) - 1);
-    let end = v_reg.end.raw().div_ceil(bit!(bits)) * bit!(bits);
+    let start = v_reg.start.align_down(bits).raw();
+    let end = v_reg.end.align_up(bits).raw();
     (end - start) / bit!(bits)
+}
+
+fn create_rootserver_objects(
+    start: VirtAddr,
+    it_v_reg: VirtRegion,
+    extra_bi_size_bits: usize,
+) -> RootServerMem {
+    let cnode_size_bits = ROOT_CNODE_SIZE_BITS + SLOT_BITS;
+    let max = rootserver_max_size_bits(extra_bi_size_bits);
+
+    let size = calculate_rootserver_size(it_v_reg, extra_bi_size_bits);
+    let mut rootserver = RootServerMem::default();
+    let mut virt_region = VirtRegion::new(start, start + size);
+
+    if extra_bi_size_bits >= max && rootserver.extra_bi.is_null() {
+        rootserver.extra_bi = virt_region.alloc_rootserver_obj(extra_bi_size_bits, 1);
+    }
+
+    // 申请 CSpace 和 VSpace
+    rootserver.cnode = virt_region.alloc_rootserver_obj(cnode_size_bits, 1);
+    if extra_bi_size_bits >= VSPACE_BITS && rootserver.extra_bi.is_null() {
+        rootserver.extra_bi = virt_region.alloc_rootserver_obj(extra_bi_size_bits, 1);
+    }
+    rootserver.vspace = virt_region.alloc_rootserver_obj(VSPACE_BITS, 1);
+
+    // 申请 asid_poll 和 ipc_buf
+    if extra_bi_size_bits >= PAGE_BITS && rootserver.extra_bi.is_null() {
+        rootserver.extra_bi = virt_region.alloc_rootserver_obj(extra_bi_size_bits, 1);
+    }
+    rootserver.asid_pool = virt_region.alloc_rootserver_obj(ASID_POOL_BITS, 1);
+    rootserver.ipc_buf = virt_region.alloc_rootserver_obj(PAGE_BITS, 1);
+
+    // 申请存储 BootInfo 需要的内存
+    rootserver.boot_info = virt_region.alloc_rootserver_obj(BOOT_INFO_FRAME_BITS, 1);
+
+    // 申请映射 Initial Thread 构建页表需要的内存
+    let n = arch_get_n_paging(it_v_reg);
+    rootserver.paging.start = virt_region.alloc_rootserver_obj(PAGE_BITS, n);
+    rootserver.paging.end = rootserver.paging.start + n * bit!(PAGE_BITS);
+
+    // 申请 TCB
+    rootserver.tcb = virt_region.alloc_rootserver_obj(TCB_BITS, 1);
+
+    assert!(virt_region.start == virt_region.end);
+    return rootserver;
 }
