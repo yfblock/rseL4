@@ -1,10 +1,16 @@
 pub mod boot_info;
+pub mod cap;
+pub mod cspace;
 pub mod fault;
 pub mod ipc;
 pub mod structures;
 pub mod tcb;
 
 use core::ops::{Deref, DerefMut};
+
+use structures::NullCap;
+
+use crate::arch::SLOT_BITS;
 
 /// Mapping Database Node
 ///
@@ -35,6 +41,13 @@ pub struct MDBNode<T> {
 }
 
 impl<T> MDBNode<T> {
+    pub const fn new(value: T) -> Self {
+        Self {
+            value,
+            next: 0,
+            prev: 0,
+        }
+    }
     pub const fn next(&self) -> usize {
         self.next & !0x3
     }
@@ -74,3 +87,9 @@ impl<T> DerefMut for MDBNode<T> {
         &mut self.value
     }
 }
+
+/// 利用 const 静态检查断言信息
+const fn _check_type_width() {
+    assert!(size_of::<MDBNode<NullCap>>() == bit!(SLOT_BITS));
+}
+const _: () = _check_type_width();

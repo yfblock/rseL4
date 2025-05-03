@@ -261,3 +261,10 @@ block notification {
 #endif
     field state 2
 }
+
+block MessageInfo {
+    field label 52
+    field capsUnwrapped 3
+    field extraCaps 2
+    field length 7
+}

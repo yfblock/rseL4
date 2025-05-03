@@ -1,11 +1,16 @@
 use super::{mem::get_kernel_img_phys_region, NUM_RESERVED_REGIONS};
 use crate::{
     arch::{
-        aarch64::{cpu, vspace::map_kernel_window, PAGE_SIZE},
+        aarch64::{cpu, gic::init_irqs, vspace::map_kernel_window, PAGE_SIZE},
         PhysAddr, PhysRegion, VirtRegion,
     },
-    boot::{init_free_mem, RootServerMem, BOOT_INFO_FRAME_BITS},
+    boot::{
+        consts::BOOT_INFO_FRAME_BITS, init_free_mem, root_server::RootServerMem, BootInfo,
+        NDKS_BOOT,
+    },
+    config::MAX_NUM_NODES,
     driver::system_off,
+    object::boot_info::populate_bi_frame,
     platform::{PLAT_MEM_REGIONS, USER_TOP},
 };
 use core::arch::naked_asm;
@@ -105,7 +110,25 @@ extern "C" fn main(
             USER_TOP.raw()
         );
     }
-    let root_server_mem = arch_init_free_mem(ui_p_reg, it_v_reg, extra_bi_size_bits);
+    let mut root_server_mem = arch_init_free_mem(ui_p_reg, it_v_reg, extra_bi_size_bits);
+    root_server_mem.create_root_cnode();
+    root_server_mem.cnode.create_domain_cap();
+
+    init_irqs(&mut root_server_mem.cnode);
+
+    // TODO: Add Extra BI Size
+    populate_bi_frame(&mut root_server_mem, 0, MAX_NUM_NODES, ipc_buffer_ptr, 0);
+
+    // TODO: 检查 DTB 大小并修改 EXTRA_BIT，修改 header
+    unsafe {
+        log::debug!("boot info addr: {:#x}", NDKS_BOOT.check_lock().bi_frame);
+        log::debug!("bi_frame: {:#x}", NDKS_BOOT.bi_frame);
+        let boot_info_ptr = NDKS_BOOT.check_lock().bi_frame;
+        log::debug!("boot info ptr: {:#x?}", boot_info_ptr);
+        let boot_info_ptr = boot_info_ptr.as_mut_ptr::<BootInfo>();
+        log::debug!("boot info ptr: {:p}", boot_info_ptr);
+        boot_info_ptr.as_mut().unwrap().io_space_caps = 0..0;
+    }
 
     system_off();
 }

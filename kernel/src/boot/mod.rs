@@ -1,30 +1,20 @@
+pub mod boot_lock;
+pub mod consts;
+pub mod root_server;
+
 use crate::{
-    arch::{
-        arch_get_n_paging, PhysRegion, VirtAddr, VirtRegion, ASID_POOL_BITS, PAGE_BITS, PPTR_TOP,
-        SLOT_BITS, TCB_BITS, VSPACE_BITS,
-    },
-    config::ROOT_CNODE_SIZE_BITS,
+    arch::{PhysRegion, VirtAddr, VirtRegion, PPTR_TOP},
+    config::MAX_NUM_BOOTINFO_UNTYPED_CAPS,
 };
 use arrayvec::ArrayVec;
-use core::ptr::NonNull;
+use boot_lock::BootLock;
+use consts::{MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG};
+use core::ops::Range;
+use root_server::{
+    calculate_rootserver_size, create_rootserver_objects, rootserver_max_size_bits, RootServerMem,
+};
 
-/// TODO: use dynamic 设置
-const MAX_NUM_RESV_REG: usize = 10;
-/// TODO: use dynamic 设置
-const MAX_NUM_FREEMEM_REG: usize = 10;
-pub const BOOT_INFO_FRAME_BITS: usize = 12;
-
-#[derive(Default)]
-pub struct RootServerMem {
-    cnode: VirtAddr,
-    vspace: VirtAddr,
-    asid_pool: VirtAddr,
-    ipc_buf: VirtAddr,
-    boot_info: VirtAddr,
-    extra_bi: VirtAddr,
-    tcb: VirtAddr,
-    paging: VirtRegion,
-}
+pub static NDKS_BOOT: BootLock<NdksBoot> = BootLock::new(NdksBoot::empty());
 
 // pub struct BootInfo {
 //     seL4_Word         extraLen;        /* length of any additional bootinfo information */
@@ -48,14 +38,39 @@ pub struct RootServerMem {
 //     /* the untypedList should be the last entry in this struct, in order
 //      * to make this struct easier to represent in other languages */
 // } seL4_BootInfo;
-pub struct BootInfo {}
+#[repr(C)]
+pub struct BootInfo {
+    pub extra_len: usize,
+    pub node_id: usize,
+    pub num_nodes: usize,
+    pub num_io_pt_levels: usize,
+    pub ipc_buffer: VirtAddr,
+    pub empty: Range<usize>,
+    pub shared_frames: Range<usize>,
+    pub user_image_frames: Range<usize>,
+    pub user_image_paging: Range<usize>,
+    pub io_space_caps: Range<usize>,
+    pub extra_bi_pages: Range<usize>,
+    pub it_cnode_size_bits: usize,
+    pub it_domain: usize,
+    pub untyped: Range<usize>,
+    pub untyped_list: [UntypedDesc; MAX_NUM_BOOTINFO_UNTYPED_CAPS],
+}
+
+#[repr(C)]
+pub struct UntypedDesc {
+    paddr: usize,
+    size_bits: u8,
+    is_device: u8,
+    _padding: u32,
+}
 
 pub struct NdksBoot {
-    reserved: ArrayVec<PhysRegion, MAX_NUM_RESV_REG>,
-    reserved_count: usize,
-    freemem: ArrayVec<VirtRegion, MAX_NUM_FREEMEM_REG>,
-    bi_frame: NonNull<BootInfo>,
-    slot_pos_cur: usize,
+    pub reserved: ArrayVec<PhysRegion, MAX_NUM_RESV_REG>,
+    pub reserved_count: usize,
+    pub freemem: ArrayVec<VirtRegion, MAX_NUM_FREEMEM_REG>,
+    pub bi_frame: VirtAddr,
+    pub slot_pos_cur: usize,
 }
 
 impl NdksBoot {
@@ -64,7 +79,7 @@ impl NdksBoot {
             reserved: ArrayVec::new_const(),
             reserved_count: 0,
             freemem: ArrayVec::new_const(),
-            bi_frame: NonNull::dangling(),
+            bi_frame: VirtAddr::new(0),
             slot_pos_cur: 0,
         }
     }
@@ -237,6 +252,7 @@ pub fn init_free_mem(
             ndks_boot
                 .freemem
                 .insert(i, VirtRegion::new(start + size, ndks_boot.freemem[i].end));
+            *NDKS_BOOT.check_lock() = ndks_boot;
             return root_server_mem;
         }
         i -= 1;
@@ -244,73 +260,8 @@ pub fn init_free_mem(
     panic!("No free memory region is big enough for root server");
 }
 
-pub fn calculate_rootserver_size(it_v_reg: VirtRegion, extra_bi_size_bits: usize) -> usize {
-    let mut size = bit!(ROOT_CNODE_SIZE_BITS + SLOT_BITS)
-        + bit!(TCB_BITS)
-        + bit!(PAGE_BITS)
-        + bit!(BOOT_INFO_FRAME_BITS)
-        + bit!(ASID_POOL_BITS)
-        + bit!(VSPACE_BITS);
-    if extra_bi_size_bits > 0 {
-        size += bit!(extra_bi_size_bits);
-    }
-    return size + arch_get_n_paging(it_v_reg) * bit!(PAGE_BITS);
-}
-
-#[inline]
-fn rootserver_max_size_bits(extra_bi_size_bits: usize) -> usize {
-    let cnode_size_bits = ROOT_CNODE_SIZE_BITS + SLOT_BITS;
-    let max = cnode_size_bits.max(VSPACE_BITS);
-    max.max(extra_bi_size_bits)
-}
-
 pub const fn get_n_paging(v_reg: VirtRegion, bits: usize) -> usize {
     let start = v_reg.start.align_down(bits).raw();
     let end = v_reg.end.align_up(bits).raw();
     (end - start) / bit!(bits)
-}
-
-fn create_rootserver_objects(
-    start: VirtAddr,
-    it_v_reg: VirtRegion,
-    extra_bi_size_bits: usize,
-) -> RootServerMem {
-    let cnode_size_bits = ROOT_CNODE_SIZE_BITS + SLOT_BITS;
-    let max = rootserver_max_size_bits(extra_bi_size_bits);
-
-    let size = calculate_rootserver_size(it_v_reg, extra_bi_size_bits);
-    let mut rootserver = RootServerMem::default();
-    let mut virt_region = VirtRegion::new(start, start + size);
-
-    if extra_bi_size_bits >= max && rootserver.extra_bi.is_null() {
-        rootserver.extra_bi = virt_region.alloc_rootserver_obj(extra_bi_size_bits, 1);
-    }
-
-    // 申请 CSpace 和 VSpace
-    rootserver.cnode = virt_region.alloc_rootserver_obj(cnode_size_bits, 1);
-    if extra_bi_size_bits >= VSPACE_BITS && rootserver.extra_bi.is_null() {
-        rootserver.extra_bi = virt_region.alloc_rootserver_obj(extra_bi_size_bits, 1);
-    }
-    rootserver.vspace = virt_region.alloc_rootserver_obj(VSPACE_BITS, 1);
-
-    // 申请 asid_poll 和 ipc_buf
-    if extra_bi_size_bits >= PAGE_BITS && rootserver.extra_bi.is_null() {
-        rootserver.extra_bi = virt_region.alloc_rootserver_obj(extra_bi_size_bits, 1);
-    }
-    rootserver.asid_pool = virt_region.alloc_rootserver_obj(ASID_POOL_BITS, 1);
-    rootserver.ipc_buf = virt_region.alloc_rootserver_obj(PAGE_BITS, 1);
-
-    // 申请存储 BootInfo 需要的内存
-    rootserver.boot_info = virt_region.alloc_rootserver_obj(BOOT_INFO_FRAME_BITS, 1);
-
-    // 申请映射 Initial Thread 构建页表需要的内存
-    let n = arch_get_n_paging(it_v_reg);
-    rootserver.paging.start = virt_region.alloc_rootserver_obj(PAGE_BITS, n);
-    rootserver.paging.end = rootserver.paging.start + n * bit!(PAGE_BITS);
-
-    // 申请 TCB
-    rootserver.tcb = virt_region.alloc_rootserver_obj(TCB_BITS, 1);
-
-    assert!(virt_region.start == virt_region.end);
-    return rootserver;
 }

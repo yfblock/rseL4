@@ -5,8 +5,20 @@ use super::{
     structures::Notification,
 };
 
+#[repr(C)]
+pub struct DomainSchedule {
+    pub domain: usize,
+    pub length: usize,
+}
+
+impl DomainSchedule {
+    pub const fn new(domain: usize, length: usize) -> Self {
+        Self { domain, length }
+    }
+}
+
 /// TCB: size >= 18 words + sizeof(arch_tcb_t) + 1 word on MCS (aligned to nearest power of 2)
-struct TCB {
+pub struct TCB {
     /// arch specific tcb state (including context)
     arch: ArchTCB,
 

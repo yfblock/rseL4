@@ -66,13 +66,17 @@ pub fn map_kernel_window() {
 ///
 /// 激活 [GLOBAL_PT] 中的虚拟地址空间，内核地址为 [GlobalPageTable::pgd]，用户地址空间为 [GlobalPageTable::user_vspace]
 pub fn activate_kernel_vspace() {
-    unsafe {
-        dsb(barrier::SY);
-        TTBR0_EL1.write(TTBR0_EL1::ASID.val(0));
-        TTBR0_EL1.set_baddr((&raw mut GLOBAL_PT.user_vspace) as u64 - PPTR_BASE as u64);
+    let (user_base_addr, kernel_base_addr) = unsafe {
+        (
+            (&raw mut GLOBAL_PT.user_vspace) as u64 - PPTR_BASE as u64,
+            (&raw mut GLOBAL_PT.pgd) as u64 - PPTR_BASE as u64,
+        )
+    };
+    dsb(barrier::SY);
+    TTBR0_EL1.write(TTBR0_EL1::ASID.val(0));
+    TTBR0_EL1.set_baddr(user_base_addr);
 
-        TTBR1_EL1.write(TTBR1_EL1::ASID.val(0));
-        TTBR1_EL1.set_baddr((&raw mut GLOBAL_PT.pgd) as u64 - PPTR_BASE as u64);
-        flush_all();
-    }
+    TTBR1_EL1.write(TTBR1_EL1::ASID.val(0));
+    TTBR1_EL1.set_baddr(kernel_base_addr);
+    flush_all();
 }

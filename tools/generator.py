@@ -6,12 +6,23 @@ import inflection
 
 FILE_DIR = path.dirname(path.realpath(__file__))
 
+
 def camelize(name) -> str:
-    return inflection.camelize(name)
+    ret = inflection.camelize(name)
+    ret = ret.replace("Cnode", "CNode")
+    return ret
 
 
 def underscore(name) -> str:
-    return inflection.underscore(name)
+    ret = inflection.underscore(name)
+    ret = ret.replace("c_node", "cnode")
+    return ret
+
+
+def handle_field_name(clzName, fieldName) -> str:
+    if fieldName.startswith("cap"):
+        fieldName = fieldName.lstrip("cap")
+    return fieldName
 
 
 def derive_str(derives) -> str:
@@ -40,6 +51,22 @@ SET_FUNC_TEMPLATE = """
     }
 """
 
+# 参数顺序 (field名称, 参数类型，field 名称)
+WITH_FUNC_TEMPLATE = """
+    pub const fn with_%s(&mut self, value: %s) -> Self {
+        self.set_%s(value);
+        *self
+    }
+"""
+
+IMPL_CAP_TRAIT_TEMPLATE = """
+impl crate::object::cap::CapTrait for %s {
+    fn raw_cap(&self) -> crate::object::cap::RawCap {
+        crate::object::cap::RawCap::new(self.0)
+    }
+}
+"""
+
 
 def getStructure(source_file):
     result = subprocess.run(
@@ -57,10 +84,12 @@ def getStructure(source_file):
     )
     return result.stdout
 
+
 lark_template = path.join(FILE_DIR, "grammar.lark")
 
 grammar = open(lark_template).read()
 parser = Lark(grammar, parser="lalr")
+
 
 # 可选：转为 Python dict 树
 class BFTransformer(Transformer):
@@ -96,15 +125,16 @@ class BFTransformer(Transformer):
     def padding(self, items):
         return {"type": "padding", "bits": int(items[0])}
 
+
 def trans_data(source_file):
     all_data = ""
     tree = parser.parse(getStructure(source_file))
     tree = BFTransformer().transform(tree)
     tagged = {}
     for x in tree.children:
-        if x['type'] != 'tagged_union':
+        if x["type"] != "tagged_union":
             continue
-        tagged[x['tag_field']] = camelize(x['name'])
+        tagged[x["tag_field"]] = camelize(x["name"])
     for i in tree.children:
         if i["type"] == "block":
             len = sum(field["bits"] for field in i["fields"])
@@ -113,7 +143,11 @@ def trans_data(source_file):
             top_name = camelize(i["name"])
 
             declare = derive_str(["Debug", "Clone", "Copy"])
+            declare += "#[repr(C)]\n"
             declare += "pub struct %s([usize; %d]); \n" % (top_name, width)
+            # 为 Capability 实现 CapTrait
+            if "Cap" in top_name:
+                declare += IMPL_CAP_TRAIT_TEMPLATE % (top_name)
             declare += "impl %s { " % (top_name)
             declare += NEW_FUNC_TEMPLATE % (width)
 
@@ -150,6 +184,7 @@ def trans_data(source_file):
                 else:
                     raise "无法处理类型 %s" % (field["type"])
 
+                field["name"] = handle_field_name(top_name, field["name"])
                 field_name = underscore(field["name"])
                 declare += GET_FUNC_TEMPLATE % (
                     field_name,
@@ -166,7 +201,9 @@ def trans_data(source_file):
                     bit_mask,
                     shift,
                 )
+                declare += WITH_FUNC_TEMPLATE % (field_name, arg_type, field_name)
                 idx += field["bits"]
+
         else:
             # TODO: 为 tagged_union 实现类型
             top_name = camelize(i["name"])
@@ -182,8 +219,10 @@ def trans_data(source_file):
 
         declare += "}"
         all_data += declare + "\n\n"
-    
+
     return all_data
+
+
 if __name__ == "__main__":
     if len(sys.argv) <= 2:
         print("Please pass the required arguments")

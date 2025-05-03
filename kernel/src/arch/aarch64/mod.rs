@@ -4,6 +4,7 @@ mod macros;
 mod boot;
 mod consts;
 mod cpu;
+mod gic;
 mod mem;
 mod objects;
 mod traps;
