@@ -10,12 +10,14 @@ FILE_DIR = path.dirname(path.realpath(__file__))
 def camelize(name) -> str:
     ret = inflection.camelize(name)
     ret = ret.replace("Cnode", "CNode")
+    ret = ret.replace("Vspace", "VSpace")
     return ret
 
 
 def underscore(name) -> str:
     ret = inflection.underscore(name)
     ret = ret.replace("c_node", "cnode")
+    ret = ret.replace("v_space", "vspace")
     return ret
 
 
@@ -31,9 +33,10 @@ def derive_str(derives) -> str:
 
 USIZE_WIDTH = 64
 
+# 参数顺序 (占位大小， 扩展操作（给某些位初始值）)
 NEW_FUNC_TEMPLATE = """
     pub const fn empty() -> Self {
-        Self([0; %d])
+        Self([0; %d])%s
     }
 """
 
@@ -44,16 +47,23 @@ GET_FUNC_TEMPLATE = """
     }
 """
 
-# 参数顺序 (field名称，参数类型, idx 顺序，idx 顺序，MASK，LeftShiftSize)
+# 参数顺序
+GET_FUNC_BOOL_TEMPLATE = """
+    pub const fn get_%s(&self) -> bool {
+        ((self.0[%d] & 0x%x) >> %d) == 1
+    }
+"""
+
+# 参数顺序 (函数可见度, field名称，参数类型, idx 顺序，idx 顺序，MASK，LeftShiftSize)
 SET_FUNC_TEMPLATE = """
-    pub const fn set_%s(&mut self, value: %s) {
+    %s const fn set_%s(&mut self, value: %s) {
         self.0[%d] = self.0[%d] & !0x%X | ((value as usize) << %d)
     }
 """
 
-# 参数顺序 (field名称, 参数类型，field 名称)
+# 参数顺序 (函数可见度, field名称, 参数类型，field 名称)
 WITH_FUNC_TEMPLATE = """
-    pub const fn with_%s(&mut self, value: %s) -> Self {
+    %s const fn with_%s(&mut self, value: %s) -> Self {
         self.set_%s(value);
         *self
     }
@@ -74,7 +84,7 @@ def getStructure(source_file):
             "gcc",
             "-E",
             "-P",
-            "-DBF_CANONICAL_RANGE=48",
+            "-I" + FILE_DIR,
             "-x",
             "c",
             source_file,
@@ -134,6 +144,8 @@ def trans_data(source_file):
     for x in tree.children:
         if x["type"] != "tagged_union":
             continue
+        if x["name"] == "cap":
+            x["name"] = "cap_type"
         tagged[x["tag_field"]] = camelize(x["name"])
     for i in tree.children:
         if i["type"] == "block":
@@ -149,12 +161,18 @@ def trans_data(source_file):
             if "Cap" in top_name:
                 declare += IMPL_CAP_TRAIT_TEMPLATE % (top_name)
             declare += "impl %s { " % (top_name)
-            declare += NEW_FUNC_TEMPLATE % (width)
+
+            is_cap = i["name"].endswith("_cap")
+            init_ops = ""
+            if is_cap:
+                init_ops = ".with_type(CapType::%s as usize)" % (top_name)
+            declare += NEW_FUNC_TEMPLATE % (width, init_ops)
 
             idx = 0
             for field in reversed(i["fields"]):
                 field_type = field["type"]
                 arg_type = "usize"
+                set_with_pub = "pub "
 
                 bit_mask = 0
                 shift = idx % USIZE_WIDTH
@@ -183,17 +201,36 @@ def trans_data(source_file):
                     continue
                 else:
                     raise "无法处理类型 %s" % (field["type"])
+                
+                if field['bits'] == 1:
+                    arg_type = "bool"
 
+                # 判断是不是 Capability，并且根据这个决定是不是公开当前的 field
+                # 如果是 Capability 且当前 field 是 type，那么应该不对外暴露设置的接口
+                if is_cap and field["name"] == "capType":
+                    set_with_pub = ""
                 field["name"] = handle_field_name(top_name, field["name"])
                 field_name = underscore(field["name"])
-                declare += GET_FUNC_TEMPLATE % (
-                    field_name,
-                    arg_type,
-                    idx / USIZE_WIDTH,
-                    bit_mask,
-                    shift,
-                )
+
+                if arg_type == "usize":
+                    declare += GET_FUNC_TEMPLATE % (
+                        field_name,
+                        arg_type,
+                        idx / USIZE_WIDTH,
+                        bit_mask,
+                        shift,
+                    )
+                elif arg_type == "bool":
+                    declare += GET_FUNC_BOOL_TEMPLATE % (
+                        field_name,
+                        idx / USIZE_WIDTH,
+                        bit_mask,
+                        shift,
+                    )
+                else:
+                    raise "不能处理的参数类型 %s" % (arg_type)
                 declare += SET_FUNC_TEMPLATE % (
+                    set_with_pub,
                     field_name,
                     arg_type,
                     idx / USIZE_WIDTH,
@@ -201,7 +238,7 @@ def trans_data(source_file):
                     bit_mask,
                     shift,
                 )
-                declare += WITH_FUNC_TEMPLATE % (field_name, arg_type, field_name)
+                declare += WITH_FUNC_TEMPLATE % (set_with_pub, field_name, arg_type, field_name)
                 idx += field["bits"]
 
         else:

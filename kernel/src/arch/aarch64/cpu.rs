@@ -1,6 +1,6 @@
 use super::vspace::activate_kernel_vspace;
 use crate::{
-    arch::{generic::KERNEL_STACK_ALLOC, PhysAddr, PPTR_BASE},
+    arch::{generic::KERNEL_STACK_ALLOC, PAddr, PPTR_BASE},
     config::KERNEL_STACK_BITS,
     driver::{init_irq_controller, init_timer},
 };
@@ -28,7 +28,7 @@ pub fn init_plat() {
     init_irq_controller();
 }
 
-pub fn set_vtable(paddr: PhysAddr) {
+pub fn set_vtable(paddr: PAddr) {
     assert!(paddr.raw() % 4 == 0);
     dsb(barrier::SY);
     VBAR_EL1.set(paddr.raw() as _);

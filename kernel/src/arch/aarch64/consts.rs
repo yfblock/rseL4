@@ -89,3 +89,6 @@ pub const MIN_UNTYPED_BITS: usize = 4;
 /// origin：`#define seL4_MaxUntypedBits 47`
 /// 最大 Untyped 对象的比特位数, 用于表示内存中未类型化对象的最大大小。
 pub const MAX_UNTYPED_BITS: usize = 47;
+
+/// 初始任务的 ASID
+pub const IT_ASID: usize = 1;

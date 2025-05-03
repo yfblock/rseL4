@@ -2,7 +2,7 @@ use super::{mem::get_kernel_img_phys_region, NUM_RESERVED_REGIONS};
 use crate::{
     arch::{
         aarch64::{cpu, gic::init_irqs, vspace::map_kernel_window, PAGE_SIZE},
-        PhysAddr, PhysRegion, VirtRegion,
+        KVirtRegion, PAddr, PhysRegion, VirtRegion,
     },
     boot::{
         consts::BOOT_INFO_FRAME_BITS, init_free_mem, root_server::RootServerMem, BootInfo,
@@ -50,11 +50,11 @@ unsafe extern "C" fn _start() -> ! {
 )
 */
 extern "C" fn main(
-    ui_phys_start: PhysAddr,
-    ui_phys_end: PhysAddr,
+    ui_phys_start: PAddr,
+    ui_phys_end: PAddr,
     pv_offset: usize,
     _virt_entry: usize,
-    dtb_p_addr: PhysAddr,
+    dtb_p_addr: PAddr,
     dtb_size: usize,
 ) -> ! {
     map_kernel_window();
@@ -121,14 +121,16 @@ extern "C" fn main(
 
     // TODO: 检查 DTB 大小并修改 EXTRA_BIT，修改 header
     unsafe {
-        log::debug!("boot info addr: {:#x}", NDKS_BOOT.check_lock().bi_frame);
-        log::debug!("bi_frame: {:#x}", NDKS_BOOT.bi_frame);
-        let boot_info_ptr = NDKS_BOOT.check_lock().bi_frame;
-        log::debug!("boot info ptr: {:#x?}", boot_info_ptr);
-        let boot_info_ptr = boot_info_ptr.as_mut_ptr::<BootInfo>();
-        log::debug!("boot info ptr: {:p}", boot_info_ptr);
-        boot_info_ptr.as_mut().unwrap().io_space_caps = 0..0;
+        NDKS_BOOT
+            .bi_frame
+            .as_mut_ptr::<BootInfo>()
+            .as_mut()
+            .unwrap()
+            .io_space_caps = 0..0;
     }
+
+    let mut root_cnode = root_server_mem.cnode.clone();
+    root_cnode.create_it_address_space(&mut root_server_mem, it_v_reg);
 
     system_off();
 }
@@ -138,7 +140,7 @@ pub fn arch_init_free_mem(
     it_v_region: VirtRegion,
     extra_bi_size_bits: usize,
 ) -> RootServerMem {
-    let mut reserved = [VirtRegion::empty(); NUM_RESERVED_REGIONS];
+    let mut reserved = [KVirtRegion::empty(); NUM_RESERVED_REGIONS];
     /* reserve the kernel image region */
     reserved[0] = get_kernel_img_phys_region().pptr();
 

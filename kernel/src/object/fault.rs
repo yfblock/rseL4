@@ -106,13 +106,13 @@ pub enum ThreadStateType {
 
 /// TODO: 根据使用状况判断是否改为 enum 判定
 pub struct ThreadState {
-    blocking_ipc_badge: u64,
-    blocking_ipc_can_grant: bool,
-    blocking_ipc_can_grant_reply: bool,
-    blocking_ipc_is_call: bool,
-    tcb_queued: bool,
-    blocking_object: u64,
-    ts_type: ThreadStateType,
+    pub blocking_ipc_badge: u64,
+    pub blocking_ipc_can_grant: bool,
+    pub blocking_ipc_can_grant_reply: bool,
+    pub blocking_ipc_is_call: bool,
+    pub tcb_queued: bool,
+    pub blocking_object: u64,
+    pub ts_type: ThreadStateType,
 }
 
 /// 利用 const 静态检查断言信息

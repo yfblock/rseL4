@@ -3,18 +3,20 @@ pub mod consts;
 pub mod root_server;
 
 use crate::{
-    arch::{PhysRegion, VirtAddr, VirtRegion, PPTR_TOP},
+    arch::{KAddr, KVirtRegion, PhysRegion, VAddr, VirtRegion, PPTR_TOP},
     config::MAX_NUM_BOOTINFO_UNTYPED_CAPS,
+    object::{cap::CapTrait, cspace::CNode},
 };
 use arrayvec::ArrayVec;
 use boot_lock::BootLock;
 use consts::{MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG};
-use core::ops::Range;
+use core::{ops::Range, ptr::addr_of_mut};
 use root_server::{
     calculate_rootserver_size, create_rootserver_objects, rootserver_max_size_bits, RootServerMem,
 };
 
-pub static NDKS_BOOT: BootLock<NdksBoot> = BootLock::new(NdksBoot::empty());
+static mut NDKS_BOOT_INNER: NdksBoot = NdksBoot::empty();
+pub static NDKS_BOOT: BootLock<NdksBoot> = BootLock::new(addr_of_mut!(NDKS_BOOT_INNER));
 
 // pub struct BootInfo {
 //     seL4_Word         extraLen;        /* length of any additional bootinfo information */
@@ -44,7 +46,7 @@ pub struct BootInfo {
     pub node_id: usize,
     pub num_nodes: usize,
     pub num_io_pt_levels: usize,
-    pub ipc_buffer: VirtAddr,
+    pub ipc_buffer: VAddr,
     pub empty: Range<usize>,
     pub shared_frames: Range<usize>,
     pub user_image_frames: Range<usize>,
@@ -55,6 +57,15 @@ pub struct BootInfo {
     pub it_domain: usize,
     pub untyped: Range<usize>,
     pub untyped_list: [UntypedDesc; MAX_NUM_BOOTINFO_UNTYPED_CAPS],
+}
+
+impl CNode {
+    #[inline]
+    pub fn provide_cap(&mut self, cap: impl CapTrait) {
+        let ndks_boot = NDKS_BOOT.check_lock();
+        self.write(ndks_boot.slot_pos_cur, cap);
+        ndks_boot.slot_pos_cur += 1;
+    }
 }
 
 #[repr(C)]
@@ -68,8 +79,8 @@ pub struct UntypedDesc {
 pub struct NdksBoot {
     pub reserved: ArrayVec<PhysRegion, MAX_NUM_RESV_REG>,
     pub reserved_count: usize,
-    pub freemem: ArrayVec<VirtRegion, MAX_NUM_FREEMEM_REG>,
-    pub bi_frame: VirtAddr,
+    pub freemem: ArrayVec<KVirtRegion, MAX_NUM_FREEMEM_REG>,
+    pub bi_frame: KAddr,
     pub slot_pos_cur: usize,
 }
 
@@ -79,7 +90,7 @@ impl NdksBoot {
             reserved: ArrayVec::new_const(),
             reserved_count: 0,
             freemem: ArrayVec::new_const(),
-            bi_frame: VirtAddr::new(0),
+            bi_frame: KAddr::new(0),
             slot_pos_cur: 0,
         }
     }
@@ -166,16 +177,16 @@ impl NdksBoot {
 
 pub fn init_free_mem(
     availables: &[PhysRegion],
-    reserveds: &[VirtRegion],
+    reserveds: &[KVirtRegion],
     it_v_reg: VirtRegion,
     extra_bi_size_bits: usize,
 ) -> RootServerMem {
     let mut ndks_boot = NdksBoot::empty();
-    let mut avail_regs = ArrayVec::<VirtRegion, MAX_NUM_FREEMEM_REG>::new();
+    let mut avail_regs = ArrayVec::<KVirtRegion, MAX_NUM_FREEMEM_REG>::new();
     avail_regs.extend(availables.iter().map(|x| x.pptr()));
     avail_regs.iter_mut().for_each(|x| {
-        x.start = x.start.min(va!(PPTR_TOP));
-        x.end = x.end.min(va!(PPTR_TOP));
+        x.start = x.start.min(ka!(PPTR_TOP));
+        x.end = x.end.min(ka!(PPTR_TOP));
     });
     // Rust 版本的 remove_reserved_regions 逻辑
     let mut a = 0;
@@ -210,7 +221,7 @@ pub fn init_free_mem(
                 // 分出不重叠前段
                 ndks_boot
                     .freemem
-                    .push(VirtRegion::new(avail.start, reserved.start));
+                    .push(KVirtRegion::new(avail.start, reserved.start));
 
                 if avail.end > reserved.end {
                     // 裁剪后继续处理当前 avail
@@ -251,7 +262,7 @@ pub fn init_free_mem(
             ndks_boot.freemem[i].end = start;
             ndks_boot
                 .freemem
-                .insert(i, VirtRegion::new(start + size, ndks_boot.freemem[i].end));
+                .insert(i, KVirtRegion::new(start + size, ndks_boot.freemem[i].end));
             *NDKS_BOOT.check_lock() = ndks_boot;
             return root_server_mem;
         }

@@ -1,5 +1,5 @@
 use crate::{
-    arch::VirtAddr,
+    arch::VAddr,
     boot::{
         consts::{RootCNodeCapSlots, BOOT_INFO_FRAME_BITS},
         root_server::RootServerMem,
@@ -10,15 +10,15 @@ use crate::{
 };
 
 pub struct BootInfoHeader {
-    id: usize,
-    len: usize,
+    pub id: usize,
+    pub len: usize,
 }
 
 pub fn populate_bi_frame(
     root_server_mem: &mut RootServerMem,
     node_id: usize,
     num_nodes: usize,
-    ipcbuf_vptr: VirtAddr,
+    ipcbuf_vptr: VAddr,
     extra_bi_size: usize,
 ) {
     unsafe {
@@ -49,13 +49,6 @@ pub fn populate_bi_frame(
     bi.extra_len = extra_bi_size;
 
     let ndks_boot = NDKS_BOOT.check_lock();
-    log::debug!(
-        "root_server_mem.boot_info: {:#x}",
-        root_server_mem.boot_info
-    );
-    log::debug!("ndks_boot: {:p}", ndks_boot);
-    log::debug!("bi_frame: {:#p}", bi as *mut BootInfo);
-    ndks_boot.bi_frame = va!(bi as *mut BootInfo);
-    log::debug!("ndks_boot.bi_frame: {:#x?}", ndks_boot.bi_frame);
+    ndks_boot.bi_frame = ka!(bi as *mut BootInfo);
     ndks_boot.slot_pos_cur = RootCNodeCapSlots::NumInitialCaps as _;
 }

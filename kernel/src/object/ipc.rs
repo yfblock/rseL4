@@ -17,11 +17,11 @@ pub enum NotificationState {
 }
 
 pub struct IPCBuffer {
-    tag: MessageInfo,
-    msg: [usize; MSG_MAX_LENGTH],
-    user_data: usize,
-    caps_or_badges: [usize; MSG_MAX_EXTRA_CAPS],
-    recv_cnode: usize,
-    recv_index: usize,
-    recv_depth: usize,
+    pub tag: MessageInfo,
+    pub msg: [usize; MSG_MAX_LENGTH],
+    pub user_data: usize,
+    pub caps_or_badges: [usize; MSG_MAX_EXTRA_CAPS],
+    pub recv_cnode: usize,
+    pub recv_index: usize,
+    pub recv_depth: usize,
 }

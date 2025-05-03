@@ -126,7 +126,7 @@ test: build example
 
 # 根据 BF 文件生成对应的代码
 # 如果需要修改宏信息，可以在 generator 中修改
-kernel/src/object/structures.rs: crates/sel4-types/structures.bf tools/generator.py
+kernel/src/object/structures.rs: tools/aarch64/structures.bf tools/structures.bf tools/generator.py
 	python3 tools/generator.py $< $@
 
 bf: kernel/src/object/structures.rs

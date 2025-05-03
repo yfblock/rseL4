@@ -1,8 +1,8 @@
 use super::consts::{RootCNodeCapSlots, BOOT_INFO_FRAME_BITS};
 use crate::{
     arch::{
-        arch_get_n_paging, VirtAddr, VirtRegion, ASID_POOL_BITS, PAGE_BITS, SLOT_BITS, TCB_BITS,
-        VSPACE_BITS, WORD_BITS,
+        arch_get_n_paging, KAddr, KVirtRegion, VirtRegion, ASID_POOL_BITS, PAGE_BITS, SLOT_BITS,
+        TCB_BITS, VSPACE_BITS, WORD_BITS,
     },
     config::ROOT_CNODE_SIZE_BITS,
     object::{cspace::CNode, structures::CNodeCap},
@@ -11,13 +11,13 @@ use crate::{
 #[derive(Default)]
 pub struct RootServerMem {
     pub cnode: CNode,
-    pub vspace: VirtAddr,
-    pub asid_pool: VirtAddr,
-    pub ipc_buf: VirtAddr,
-    pub boot_info: VirtAddr,
-    pub extra_bi: VirtAddr,
-    pub tcb: VirtAddr,
-    pub paging: VirtRegion,
+    pub vspace: KAddr,
+    pub asid_pool: KAddr,
+    pub ipc_buf: KAddr,
+    pub boot_info: KAddr,
+    pub extra_bi: KAddr,
+    pub tcb: KAddr,
+    pub paging: KVirtRegion,
 }
 
 impl RootServerMem {
@@ -28,6 +28,13 @@ impl RootServerMem {
             .with_cnode_ptr(self.cnode.cnode_addr().raw());
         self.cnode
             .write(RootCNodeCapSlots::InitThreadCNode as _, cap);
+    }
+
+    pub fn alloc_paging(&mut self) -> KAddr {
+        let allocated = self.paging.start;
+        self.paging.start += bit!(PAGE_BITS);
+        assert!(self.paging.start <= self.paging.end);
+        return allocated;
     }
 }
 
@@ -52,7 +59,7 @@ pub fn rootserver_max_size_bits(extra_bi_size_bits: usize) -> usize {
 }
 
 pub fn create_rootserver_objects(
-    start: VirtAddr,
+    start: KAddr,
     it_v_reg: VirtRegion,
     extra_bi_size_bits: usize,
 ) -> RootServerMem {
@@ -61,7 +68,7 @@ pub fn create_rootserver_objects(
 
     let size = calculate_rootserver_size(it_v_reg, extra_bi_size_bits);
     let mut rootserver = RootServerMem::default();
-    let mut virt_region = VirtRegion::new(start, start + size);
+    let mut virt_region = KVirtRegion::new(start, start + size);
 
     if extra_bi_size_bits >= max && rootserver.extra_bi.is_null() {
         rootserver.extra_bi = virt_region.alloc_rootserver_obj(extra_bi_size_bits, 1);

@@ -3,9 +3,9 @@
 use arm_pl011::Pl011Uart;
 use spin::Mutex;
 
-use crate::{arch::PhysAddr, console::Console};
+use crate::{arch::PAddr, console::Console};
 
-const PL011_UART: PhysAddr = pa!(0x0900_0000);
+const PL011_UART: PAddr = pa!(0x0900_0000);
 
 static UART: Mutex<Pl011Uart> = Mutex::new(Pl011Uart::new(PL011_UART.pptr().raw() as _));
 

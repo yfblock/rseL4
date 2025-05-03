@@ -1,4 +1,4 @@
-use crate::arch::{ArchTCB, VirtAddr};
+use crate::arch::{ArchTCB, VAddr};
 
 use super::{
     fault::{Fault, LookupFault, ThreadState},
@@ -51,7 +51,7 @@ pub struct TCB {
     fault_handler: usize,
 
     /// userland virtual address of thread IPC buffer, 1 word
-    ipc_buffer: VirtAddr,
+    ipc_buffer: VAddr,
     // #ifdef ENABLE_SMP_SUPPORT
     //     /* cpu ID this thread is running on, 1 word */
     //     word_t tcbAffinity;

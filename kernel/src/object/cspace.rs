@@ -1,4 +1,4 @@
-use crate::{arch::VirtAddr, boot::consts::RootCNodeCapSlots};
+use crate::{arch::KAddr, boot::consts::RootCNodeCapSlots};
 
 use super::{
     cap::{CapTrait, RawCap},
@@ -6,20 +6,20 @@ use super::{
     MDBNode,
 };
 
-#[derive(Default)]
-pub struct CNode(VirtAddr);
+#[derive(Default, Clone)]
+pub struct CNode(KAddr);
 
 impl CNode {
     /// 创建一个 [CNode] 结构体
     ///
     /// ## 参数
     /// - `addr` [VirtAddr] CNode 指向的物理内存
-    pub const fn new(addr: VirtAddr) -> Self {
+    pub const fn new(addr: KAddr) -> Self {
         Self(addr)
     }
 
     /// 获取 [CNode] 指向的内存地址 [VirtAddr]
-    pub const fn cnode_addr(&self) -> VirtAddr {
+    pub const fn cnode_addr(&self) -> KAddr {
         self.0
     }
 

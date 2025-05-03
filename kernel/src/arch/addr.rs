@@ -4,33 +4,56 @@ use super::PPTR_BASE;
 
 macro_rules! pa {
     ($addr:expr) => {
-        $crate::arch::PhysAddr::new(($addr) as usize)
+        $crate::arch::PAddr::new(($addr) as usize)
     };
 }
 
 macro_rules! va {
     ($addr:expr) => {
-        $crate::arch::VirtAddr::new(($addr) as usize)
+        $crate::arch::VAddr::new(($addr) as usize)
     };
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
-pub struct PhysAddr(usize);
-#[repr(C)]
-#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
-pub struct VirtAddr(usize);
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
-pub struct VirtRegion {
-    pub start: VirtAddr,
-    pub end: VirtAddr,
+macro_rules! ka {
+    ($addr:expr) => {
+        $crate::arch::KAddr::new(($addr) as usize)
+    };
 }
 
+/// 指向物理地址
+#[repr(C)]
+#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
+pub struct PAddr(usize);
+
+/// 指向任意虚拟地址
+#[repr(C)]
+#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
+pub struct VAddr(usize);
+
+/// 指向映射到内核区域的虚拟地址
+#[repr(C)]
+#[derive(Clone, Copy, Default, PartialEq, PartialOrd, Eq, Ord)]
+pub struct KAddr(usize);
+
+/// 任意虚拟地址区域
+#[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
+pub struct VirtRegion {
+    pub start: VAddr,
+    pub end: VAddr,
+}
+
+/// 物理地址区域
 #[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
 pub struct PhysRegion {
-    pub start: PhysAddr,
-    pub end: PhysAddr,
+    pub start: PAddr,
+    pub end: PAddr,
+}
+
+/// 内核虚拟地址区域
+#[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
+pub struct KVirtRegion {
+    pub start: KAddr,
+    pub end: KAddr,
 }
 
 macro_rules! impl_addr {
@@ -118,17 +141,20 @@ macro_rules! impl_addr {
     };
 }
 
-impl VirtAddr {
+impl KAddr {
     pub const fn as_ptr<T>(&self) -> *const T {
         self.0 as _
     }
     pub const fn as_mut_ptr<T>(&self) -> *mut T {
         self.0 as _
     }
+    pub const fn paddr(&self) -> PAddr {
+        PAddr(self.0 - PPTR_BASE)
+    }
 }
 
-impl VirtRegion {
-    pub fn alloc_rootserver_obj(&mut self, size_bits: usize, num: usize) -> VirtAddr {
+impl KVirtRegion {
+    pub fn alloc_rootserver_obj(&mut self, size_bits: usize, num: usize) -> KAddr {
         let allocated = self.start;
         self.start += num * bit!(size_bits);
         assert!(allocated.raw() % bit!(size_bits) == 0);
@@ -162,29 +188,29 @@ macro_rules! impl_addr_range {
     };
 }
 
-impl_addr!(PhysAddr, VirtAddr);
-impl_addr_range!(PhysRegion(PhysAddr), VirtRegion(VirtAddr));
+impl_addr!(PAddr, VAddr, KAddr);
+impl_addr_range!(PhysRegion(PAddr), VirtRegion(VAddr), KVirtRegion(KAddr));
 
-impl PhysAddr {
-    pub const fn pptr(&self) -> VirtAddr {
-        VirtAddr(self.0 | PPTR_BASE)
+impl PAddr {
+    pub const fn pptr(&self) -> KAddr {
+        KAddr(self.0 | PPTR_BASE)
     }
 }
 
 impl PhysRegion {
-    pub const fn pptr(&self) -> VirtRegion {
-        VirtRegion {
+    pub const fn pptr(&self) -> KVirtRegion {
+        KVirtRegion {
             start: self.start.pptr(),
             end: self.end.pptr(),
         }
     }
 }
 
-impl VirtRegion {
+impl KVirtRegion {
     pub const fn paddr(&self) -> PhysRegion {
         PhysRegion {
-            start: pa!(self.start.0),
-            end: pa!(self.end.0),
+            start: self.start.paddr(),
+            end: self.end.paddr(),
         }
     }
 }
