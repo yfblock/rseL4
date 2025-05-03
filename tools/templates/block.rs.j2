@@ -1,0 +1,56 @@
+#[repr(C)]
+{%- if derives | length > 0 %}
+#[derive({{",".join(derives)}})]
+{%- endif %}
+pub struct {{name}}([usize; {{size}}]);
+
+impl {{name}} {
+    pub const fn empty() -> Self {
+        Self([0; {{size}}])
+        {% if name.endswith("Cap") %}
+            .with_type(CapType::{{name}} as _)
+        {% endif %}
+    }
+    {%- for fl in fields%} 
+    {% set bitmask = "{:#x}".format(fl.bitmask) %}
+    {%- if fl.arg == "usize" %}
+    pub const fn get_{{fl.name}}(&self) -> usize {
+        (self.0[{{fl.uidx}}] & {{bitmask}}) >> {{fl.uoff}}
+    }
+
+    pub const fn set_{{fl.name}}(&mut self, val: usize) {
+        self.0[{{fl.uidx}}] = self.0[{{fl.uidx}}] & !{{bitmask}} | ((val as usize) << {{fl.uoff}})
+    }
+    {% elif fl.arg == "bool" %}
+    pub const fn get_{{fl.name}}(&self) -> bool {
+        (self.0[{{fl.uidx}}] & {{bitmask}}) != 0
+    }
+
+    pub const fn set_{{fl.name}}(&mut self, val: bool) {
+        self.0[{{fl.uidx}}] = self.0[{{fl.uidx}}] & !{{bitmask}} | ((val as usize) << {{fl.uoff}})
+    }
+    {% endif %}
+    pub const fn with_{{fl.name}}(mut self, val: {{fl.arg}}) -> Self {
+        self.set_{{fl.name}}(val);
+        self
+    }
+    {%- endfor %}
+}
+
+impl core::fmt::Debug for {{name}} {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("{{ name }}")
+        {%- for field in fields %}
+            .field("{{ field.name }}", &self.get_{{field.name}}())
+        {%- endfor %}
+            .finish()
+    }
+}
+
+{%- if name.endswith("Cap") %}
+impl crate::object::cap::CapTrait for {{name}} {
+    fn raw_cap(&self) -> crate::object::cap::RawCap {
+        crate::object::cap::RawCap::new(self.0)
+    }
+}
+{% endif %}

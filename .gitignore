@@ -3,6 +3,7 @@
 !/kernel/linker.lds
 /qemu.log
 kernel/src/object/structures.rs
+__pycache__
 
 build
 kernel.elf
