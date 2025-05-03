@@ -1,5 +1,8 @@
 use super::VSPACE_INDEX_BITS;
-use crate::arch::PPTR_BASE;
+use crate::{
+    arch::{KAddr, PPTR_BASE},
+    object::structures::PageTableCap,
+};
 use aarch64_cpu::{
     asm::barrier::{self, dsb},
     registers::{Writeable, TTBR0_EL1, TTBR1_EL1},
@@ -46,18 +49,16 @@ static mut GLOBAL_PT: GlobalPageTable = GlobalPageTable::new();
 ///
 /// aarch64 为四级页表，在 [GLOBAL_PT] 映射内核内存，内存范围为 [PPTR_BASE] - [crate::arch::PPTR_TOP]，映射单位为 2MB 内存
 pub fn map_kernel_window() {
-    unsafe {
-        let global_pt = (&raw mut GLOBAL_PT).as_mut().unwrap();
-        global_pt.pgd[PTE_LEN - 1] = PTE::new_table(global_pt.pud.as_ptr() as usize - PPTR_BASE);
-        for i in 0..PTE_LEN {
-            global_pt.pud[i] = PTE::new_table(global_pt.pds[i].as_ptr() as usize - PPTR_BASE);
-        }
-        for i in 0..PTE_LEN * PTE_LEN {
-            global_pt.pds[i / PTE_LEN][i % PTE_LEN] = PTE::new_page(
-                i * 0x20_0000,
-                PTEFlags::VALID | PTEFlags::AF | PTEFlags::ATTR_INDX | PTEFlags::NG,
-            );
-        }
+    let global_pt = ka!(&raw mut GLOBAL_PT).get_mut::<GlobalPageTable>();
+    global_pt.pgd[PTE_LEN - 1] = PTE::new_table(global_pt.pud.as_ptr() as usize - PPTR_BASE);
+    for i in 0..PTE_LEN {
+        global_pt.pud[i] = PTE::new_table(global_pt.pds[i].as_ptr() as usize - PPTR_BASE);
+    }
+    for i in 0..PTE_LEN * PTE_LEN {
+        global_pt.pds[i / PTE_LEN][i % PTE_LEN] = PTE::new_page(
+            i * 0x20_0000,
+            PTEFlags::VALID | PTEFlags::AF | PTEFlags::ATTR_INDX | PTEFlags::NG,
+        );
     }
     // TODO: 映射设备物理内存并判断是否为用户态保留
 }
@@ -79,4 +80,25 @@ pub fn activate_kernel_vspace() {
     TTBR1_EL1.write(TTBR1_EL1::ASID.val(0));
     TTBR1_EL1.set_baddr(kernel_base_addr);
     flush_all();
+}
+
+#[derive(Default, Clone)]
+pub struct VSpace(KAddr);
+
+impl VSpace {
+    /// 创建一个 [VSpace] 结构体
+    ///
+    /// ## 参数
+    /// - `addr` [VirtAddr] VSpace 指向的物理内存
+    pub const fn new(addr: KAddr) -> Self {
+        Self(addr)
+    }
+
+    /// 获取 [VSpace] 指向的内存地址 [VirtAddr]
+    pub const fn vspace_addr(&self) -> KAddr {
+        self.0
+    }
+
+    ///
+    pub fn map_it_pud(&mut self, cap: PageTableCap) {}
 }

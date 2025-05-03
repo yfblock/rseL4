@@ -148,6 +148,9 @@ impl KAddr {
     pub const fn as_mut_ptr<T>(&self) -> *mut T {
         self.0 as _
     }
+    pub const fn get_mut<T>(&self) -> &'static mut T {
+        unsafe { self.as_mut_ptr::<T>().as_mut().unwrap() }
+    }
     pub const fn paddr(&self) -> PAddr {
         PAddr(self.0 - PPTR_BASE)
     }

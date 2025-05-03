@@ -33,13 +33,7 @@ pub fn populate_bi_frame(
         // TODO: 初始化 extra_bi 的内存
     }
 
-    let bi = unsafe {
-        root_server_mem
-            .boot_info
-            .as_mut_ptr::<BootInfo>()
-            .as_mut()
-            .expect("invalid boot_info pointer")
-    };
+    let bi = root_server_mem.boot_info.get_mut::<BootInfo>();
     bi.node_id = node_id;
     bi.num_nodes = num_nodes;
     bi.num_io_pt_levels = 0;

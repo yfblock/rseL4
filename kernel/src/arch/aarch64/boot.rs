@@ -120,14 +120,7 @@ extern "C" fn main(
     populate_bi_frame(&mut root_server_mem, 0, MAX_NUM_NODES, ipc_buffer_ptr, 0);
 
     // TODO: 检查 DTB 大小并修改 EXTRA_BIT，修改 header
-    unsafe {
-        NDKS_BOOT
-            .bi_frame
-            .as_mut_ptr::<BootInfo>()
-            .as_mut()
-            .unwrap()
-            .io_space_caps = 0..0;
-    }
+    NDKS_BOOT.bi_frame.get_mut::<BootInfo>().io_space_caps = 0..0;
 
     let mut root_cnode = root_server_mem.cnode.clone();
     root_cnode.create_it_address_space(&mut root_server_mem, it_v_reg);

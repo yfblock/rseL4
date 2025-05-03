@@ -154,12 +154,9 @@ def trans_data(source_file):
 
             top_name = camelize(i["name"])
 
-            declare = derive_str(["Debug", "Clone", "Copy"])
+            declare = derive_str(["Clone", "Copy"])
             declare += "#[repr(C)]\n"
             declare += "pub struct %s([usize; %d]); \n" % (top_name, width)
-            # 为 Capability 实现 CapTrait
-            if "Cap" in top_name:
-                declare += IMPL_CAP_TRAIT_TEMPLATE % (top_name)
             declare += "impl %s { " % (top_name)
 
             is_cap = i["name"].endswith("_cap")
@@ -180,6 +177,7 @@ def trans_data(source_file):
                 # field 正常处理，获取整个值，然后 MASK 特定位就行了
                 # TODO: 将仅有一个位的数据更换为 bool
                 # TODO: 如果 field 的名称是当前列表中定义的名称需要特殊处理 也就是处理 tagged
+                # TODO: 将所有 PTR 转换为 PPTR
                 if field_type == "field":
                     bit_mask = (1 << field["bits"]) - 1
                 # 处理 field_high 的情况：
@@ -240,7 +238,19 @@ def trans_data(source_file):
                 )
                 declare += WITH_FUNC_TEMPLATE % (set_with_pub, field_name, arg_type, field_name)
                 idx += field["bits"]
+            declare += "}"
 
+            declare += "impl core::fmt::Debug for %s {\n" % (top_name)
+            declare += "fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {"
+            declare += '    f.debug_struct("%s")' % (top_name)
+            for field in i["fields"]:
+                if field['type'] == "padding":
+                    continue
+                declare += '    .field("%s", &self.get_%s())' % (underscore(field["name"]), underscore(field["name"]))
+            declare += "        .finish() } }"
+            # 为 Capability 实现 CapTrait
+            if "Cap" in top_name:
+                declare += IMPL_CAP_TRAIT_TEMPLATE % (top_name)
         else:
             # TODO: 为 tagged_union 实现类型
             top_name = camelize(i["name"])
@@ -253,8 +263,7 @@ def trans_data(source_file):
                     camelize(tag["name"]),
                     tag["value"],
                 )
-
-        declare += "}"
+            declare += "}"
         all_data += declare + "\n\n"
 
     return all_data

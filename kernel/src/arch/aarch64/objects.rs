@@ -25,19 +25,20 @@ impl CNode {
     ) {
         let cap = VSpaceCap::empty()
             .with_vs_mapped_asid(IT_ASID)
-            .with_vs_base_ptr(root_server_mem.vspace.raw())
+            .with_vs_base_ptr(root_server_mem.vspace.vspace_addr().raw())
             .with_vs_is_mapped(true);
+
         self.write(RootCNodeCapSlots::InitThreadVSpace as _, cap);
         for addr in
             (it_v_reg.start.align_down(39).raw()..it_v_reg.end.align_up(39).raw()).step_by(bit!(39))
         {
-            let page_paddr = root_server_mem.alloc_paging();
-            log::debug!("addr: {:#x?}", page_paddr);
-            // let cap = PageTableCap::empty()
-            //     .with_pt_base_ptr(value)
-            //     .with_pt_is_mapped(true)
-            //     .with_pt_mapped_asid(IT_ASID)
-            //     .with_pt_mapped_address(addr);
+            let page_ptr = root_server_mem.alloc_paging();
+            let cap = PageTableCap::empty()
+                .with_pt_base_ptr(page_ptr.raw())
+                .with_pt_is_mapped(true)
+                .with_pt_mapped_asid(IT_ASID)
+                .with_pt_mapped_address(addr);
+            log::debug!("map cap: {:#x?}", cap);
         }
 
         for addr in
