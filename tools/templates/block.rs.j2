@@ -7,34 +7,46 @@ pub struct {{name}}([usize; {{size}}]);
 impl {{name}} {
     pub const fn empty() -> Self {
         Self([0; {{size}}])
-        {% if name.endswith("Cap") %}
+        {%- if name.endswith("Cap") -%}
             .with_type(CapType::{{name}} as _)
-        {% endif %}
-    }
-    {%- for fl in fields%} 
-    {% set bitmask = "{:#x}".format(fl.bitmask) %}
-    {%- if fl.arg == "usize" %}
-    pub const fn get_{{fl.name}}(&self) -> usize {
-        (self.0[{{fl.uidx}}] & {{bitmask}}) >> {{fl.uoff}}
+        {%- endif %}
     }
 
-    pub const fn set_{{fl.name}}(&mut self, val: usize) {
-        self.0[{{fl.uidx}}] = self.0[{{fl.uidx}}] & !{{bitmask}} | ((val as usize) << {{fl.uoff}})
-    }
-    {% elif fl.arg == "bool" %}
-    pub const fn get_{{fl.name}}(&self) -> bool {
-        (self.0[{{fl.uidx}}] & {{bitmask}}) != 0
+{%- for fl in fields%} 
+{%- set bitmask = "{:#x}".format(fl.bitmask) %}
+{% set vis = "pub " if not name.endswith("Cap") or not fl.name == "type" %}
+    pub const fn get_{{fl.name}}(&self) -> {{fl.arg}} {
+        let value = (self.0[{{fl.uidx}}] & {{bitmask}}) >> {{fl.uoff}};
+        {%- if fl.arg == "crate::arch::KAddr" %}
+        // 如果最高为是 1 那么就进行位扩展 目前仅支持 64 位系统
+        if value & (1 << ({{fl.bits}} - 1)) != 0 {
+            ka!(value | 0xffff_0000_0000_0000)
+        } else {
+            ka!(value)
+        }
+        {%- elif fl.arg == "usize" %}
+        value
+        {%- elif fl.arg == "bool" %}
+        value != 0
+        {%- endif %}
     }
 
-    pub const fn set_{{fl.name}}(&mut self, val: bool) {
-        self.0[{{fl.uidx}}] = self.0[{{fl.uidx}}] & !{{bitmask}} | ((val as usize) << {{fl.uoff}})
+    {{vis}}const fn set_{{fl.name}}(&mut self, val: {{fl.arg}}) {
+        {%- if fl.arg == "crate::arch::KAddr" %}
+        let bits = val.raw();
+        {%- elif fl.arg == "usize" %}
+        let bits = val;
+        {%- elif fl.arg == "bool" %}
+        let bits = val as usize;
+        {%- endif %}
+        self.0[{{fl.uidx}}] = self.0[{{fl.uidx}}] & !{{bitmask}} | ((bits << {{fl.uoff}}) & {{bitmask}} )
     }
-    {% endif %}
-    pub const fn with_{{fl.name}}(mut self, val: {{fl.arg}}) -> Self {
+
+    {{vis}}const fn with_{{fl.name}}(mut self, val: {{fl.arg}}) -> Self {
         self.set_{{fl.name}}(val);
         self
     }
-    {%- endfor %}
+{%- endfor %}
 }
 
 impl core::fmt::Debug for {{name}} {
@@ -47,7 +59,7 @@ impl core::fmt::Debug for {{name}} {
     }
 }
 
-{%- if name.endswith("Cap") %}
+{% if name.endswith("Cap") -%}
 impl crate::object::cap::CapTrait for {{name}} {
     fn raw_cap(&self) -> crate::object::cap::RawCap {
         crate::object::cap::RawCap::new(self.0)

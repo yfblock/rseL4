@@ -6,7 +6,11 @@ from parser import BFTransformer, parser
 
 FILE_DIR = path.dirname(path.realpath(__file__))
 
-env = Environment(loader=PackageLoader("templates", ""), autoescape=select_autoescape())
+env = Environment(
+    loader=PackageLoader("templates", ""),
+    autoescape=select_autoescape(),
+    extensions=["jinja2.ext.loopcontrols"],
+)
 block_template = env.get_template("block.rs.j2")
 tag_template = env.get_template("tag_union.rs.j2")
 

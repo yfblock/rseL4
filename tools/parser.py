@@ -53,6 +53,8 @@ class BFTransformer(Transformer):
                 item["uoff"] = 0
             if item["bits"] == 1:
                 item["arg"] = "bool"
+            if item["name"].endswith("_ptr"):
+                item["arg"] = "crate::arch::KAddr"
 
             del item["offset"]
             del item["type"]

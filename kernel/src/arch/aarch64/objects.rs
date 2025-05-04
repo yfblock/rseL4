@@ -25,7 +25,7 @@ impl CNode {
     ) {
         let cap = VSpaceCap::empty()
             .with_vs_mapped_asid(IT_ASID)
-            .with_vs_base_ptr(root_server_mem.vspace.vspace_addr().raw())
+            .with_vs_base_ptr(root_server_mem.vspace.vspace_addr())
             .with_vs_is_mapped(true);
 
         self.write(RootCNodeCapSlots::InitThreadVSpace as _, cap);
@@ -34,7 +34,7 @@ impl CNode {
         {
             let page_ptr = root_server_mem.alloc_paging();
             let cap = PageTableCap::empty()
-                .with_pt_base_ptr(page_ptr.raw())
+                .with_pt_base_ptr(page_ptr)
                 .with_pt_is_mapped(true)
                 .with_pt_mapped_asid(IT_ASID)
                 .with_pt_mapped_address(addr);

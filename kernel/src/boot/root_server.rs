@@ -25,7 +25,7 @@ impl RootServerMem {
         let cap = CNodeCap::empty()
             .with_cnode_radix(ROOT_CNODE_SIZE_BITS)
             .with_cnode_guard_size(WORD_BITS - ROOT_CNODE_SIZE_BITS)
-            .with_cnode_ptr(self.cnode.cnode_addr().raw());
+            .with_cnode_ptr(self.cnode.cnode_addr());
         self.cnode
             .write(RootCNodeCapSlots::InitThreadCNode as _, cap);
     }
