@@ -28,7 +28,7 @@ impl CNode {
     /// ## 参数
     /// - `offset` [usize] 需要写入的 Capability 偏移
     /// - `cap`    [CapTrait] 需要写入的 Capability，在内部会转换为 [RawCap] 后写入
-    pub fn write(&mut self, offset: usize, cap: impl CapTrait) {
+    pub fn write(&mut self, offset: usize, cap: &impl CapTrait) {
         let mut mdb_node = MDBNode::new(cap.raw_cap());
         mdb_node.set_first_badged(true);
         mdb_node.set_revocable(true);
@@ -42,6 +42,6 @@ impl CNode {
 
     pub fn create_domain_cap(&mut self) {
         let cap = DomainCap::empty();
-        self.write(RootCNodeCapSlots::Domain as _, cap);
+        self.write(RootCNodeCapSlots::Domain as _, &cap);
     }
 }

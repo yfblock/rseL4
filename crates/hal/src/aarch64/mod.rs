@@ -3,7 +3,7 @@ bitflags::bitflags! {
     pub struct PTEFlags: usize {
         // Attribute fields in stage 1 VMSAv8-64 Block and Page descriptors:
         /// Whether the descriptor is valid.
-        const VALID =       bit!(0);
+        const V =           bit!(0);
         /// The descriptor gives the address of the next level of translation table or 4KB page.
         /// (not a 2M, 1G block)
         const NON_BLOCK =   bit!(1);
@@ -22,7 +22,7 @@ bitflags::bitflags! {
         /// Shareability: Inner or Outer Shareable (otherwise Non-shareable).
         const SHAREABLE =   bit!(9);
         /// The Access flag.
-        const AF =          bit!(10);
+        const ACCESS =      bit!(10);
         /// The not global bit.
         const NG =          bit!(11);
         /// Indicates that 16 adjacent translation table entries point to contiguous memory regions.
@@ -57,7 +57,7 @@ impl PTE {
     }
 
     #[inline]
-    pub const fn address(&self) -> usize {
+    pub const fn addr(&self) -> usize {
         (self.0 & !0xFFF) as _
     }
 
@@ -76,21 +76,21 @@ impl PTE {
 
     #[inline]
     pub const fn is_valid(&self) -> bool {
-        self.flags().contains(PTEFlags::VALID)
+        self.flags().contains(PTEFlags::V)
     }
 
     #[inline]
     pub fn is_table(&self) -> bool {
-        self.flags().contains(PTEFlags::NON_BLOCK | PTEFlags::VALID)
+        self.flags().contains(PTEFlags::NON_BLOCK | PTEFlags::V)
     }
 
     #[inline]
-    pub fn new_table(paddr: usize) -> Self {
-        Self(paddr | PTEFlags::VALID.bits() | PTEFlags::NON_BLOCK.bits())
+    pub const fn new_table(paddr: usize) -> Self {
+        Self(paddr | PTEFlags::V.bits() | PTEFlags::NON_BLOCK.bits())
     }
 
     #[inline]
-    pub fn new_page(paddr: usize, flags: PTEFlags) -> Self {
+    pub const fn new_page(paddr: usize, flags: PTEFlags) -> Self {
         Self(paddr | flags.bits() as usize)
     }
 }

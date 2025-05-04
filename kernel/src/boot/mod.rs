@@ -59,15 +59,6 @@ pub struct BootInfo {
     pub untyped_list: [UntypedDesc; MAX_NUM_BOOTINFO_UNTYPED_CAPS],
 }
 
-impl CNode {
-    #[inline]
-    pub fn provide_cap(&mut self, cap: impl CapTrait) {
-        let ndks_boot = NDKS_BOOT.check_lock();
-        self.write(ndks_boot.slot_pos_cur, cap);
-        ndks_boot.slot_pos_cur += 1;
-    }
-}
-
 #[repr(C)]
 pub struct UntypedDesc {
     paddr: usize,

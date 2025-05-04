@@ -55,6 +55,8 @@ class BFTransformer(Transformer):
                 item["arg"] = "bool"
             if item["name"].endswith("_ptr"):
                 item["arg"] = "crate::arch::KAddr"
+            if item["name"].startswith("f_"):
+                item["name"] = item["name"].lstrip("f_")
 
             del item["offset"]
             del item["type"]

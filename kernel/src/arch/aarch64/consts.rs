@@ -92,3 +92,11 @@ pub const MAX_UNTYPED_BITS: usize = 47;
 
 /// 初始任务的 ASID
 pub const IT_ASID: usize = 1;
+
+#[repr(usize)]
+#[derive(Debug, Clone, Copy)]
+pub enum VMRights {
+    VMKernelOnly = 0,
+    VMReadWrite = 1,
+    VMReadOnly = 3,
+}

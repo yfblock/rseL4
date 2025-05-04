@@ -69,6 +69,7 @@ extern "C" fn main(
     log::debug!("dtb_size  : {:#x?}", dtb_size);
 
     let ui_p_reg = PhysRegion::new(ui_phys_start, ui_phys_end);
+    let ui_reg = ui_p_reg.pptr();
     let ui_v_reg = VirtRegion::new(
         va!(ui_phys_start.raw() - pv_offset),
         va!(ui_phys_end.raw() - pv_offset),
@@ -77,6 +78,7 @@ extern "C" fn main(
     let bi_frame_vptr = ipc_buffer_ptr + PAGE_SIZE;
     let extra_bi_frame_vptr = bi_frame_vptr + bit!(BOOT_INFO_FRAME_BITS);
     log::debug!("ui_v_reg  : {:#x?}", ui_v_reg);
+    log::debug!("ui_reg    ： {:#x?}", ui_reg);
 
     // let mut dtb_p_reg = PhysAddrRange::empty();
     // if dtb_size > 0 {
@@ -123,8 +125,21 @@ extern "C" fn main(
     NDKS_BOOT.bi_frame.get_mut::<BootInfo>().io_space_caps = 0..0;
 
     let mut root_cnode = root_server_mem.cnode.clone();
-    root_cnode.create_it_address_space(&mut root_server_mem, it_v_reg);
+    let vspace_cap = root_cnode.create_it_address_space(&mut root_server_mem, it_v_reg);
 
+    root_cnode.create_bi_frame_cap(&mut root_server_mem, &vspace_cap, bi_frame_vptr);
+
+    let ipcbuf_cap =
+        root_cnode.create_ipcbuf_frame_cap(&mut root_server_mem, &vspace_cap, ipc_buffer_ptr);
+
+    let create_frames_ret =
+        root_cnode.create_frames_of_region(&vspace_cap, ui_reg, true, pv_offset);
+
+    NDKS_BOOT.bi_frame.get_mut::<BootInfo>().user_image_frames = create_frames_ret.unwrap();
+
+    let it_ap_cap = root_cnode.create_it_asid_pool(&mut root_server_mem);
+    todo!("write it asid pool");
+    log::debug!("created bi frame");
     system_off();
 }
 

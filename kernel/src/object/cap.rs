@@ -3,6 +3,7 @@ pub trait CapTrait {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct RawCap([usize; 2]);
 
 impl RawCap {

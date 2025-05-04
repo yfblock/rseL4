@@ -18,5 +18,5 @@ pub fn init_irqs(root_cnode_cap: &mut CNode) {
     }
     set_irq_state(IrqState::IRQTimer, Irq::new(0, KERNEL_TIMER_IRQ));
     // TODO: Init IRQTimer
-    root_cnode_cap.write(RootCNodeCapSlots::IRQControl as _, IrqControlCap::empty());
+    root_cnode_cap.write(RootCNodeCapSlots::IRQControl as _, &IrqControlCap::empty());
 }
