@@ -1,4 +1,3 @@
-
 from lark import Lark, Transformer, v_args
 from os import path
 import inflection
@@ -33,6 +32,7 @@ def handle_field_name(clzName, fieldName) -> str:
 
 class BFTransformer(Transformer):
     index = 0
+
     def block(self, items):
         name = camelize(str(items[0]))
         params = items[1] if isinstance(items[1], list) else []
@@ -41,25 +41,31 @@ class BFTransformer(Transformer):
         fields = [item for item in fields if item is not None]
         # 计算真正的偏移后重置 index，因为之前的计算的是从高位向低位的增长
         for item in fields:
-            item['name'] = handle_field_name(name, item['name'])
-            item['offset'] = self.index - item['offset']
-            item['uidx'] = item['offset'] // 64
-            item['uoff'] = item['offset'] % 64
-            item['bitmask'] = (1 << (item['uoff'] + item['bits'])) - (1 << item['uoff'])
-            item['arg'] = 'usize'
+            item["name"] = handle_field_name(name, item["name"])
+            item["offset"] = self.index - item["offset"]
+            item["uidx"] = item["offset"] // 64
+            item["uoff"] = item["offset"] % 64
+            item["bitmask"] = (1 << (item["uoff"] + item["bits"])) - (1 << item["uoff"])
+            item["arg"] = "usize"
 
-            if item['type'] == "field_high":
-                item['bits'] += item['uoff']
-                item['uoff'] = 0
-            if item['bits'] == 1:
-                item['arg'] = 'bool'
+            if item["type"] == "field_high":
+                item["bits"] += item["uoff"]
+                item["uoff"] = 0
+            if item["bits"] == 1:
+                item["arg"] = "bool"
 
-            del item['offset']
-            del item['type']
+            del item["offset"]
+            del item["type"]
         size = self.index // 64
         self.index = 0
 
-        return {"type": "block", "size": size, "name": name, "params": params, "fields": fields}
+        return {
+            "type": "block",
+            "size": size,
+            "name": name,
+            "params": params,
+            "fields": fields,
+        }
 
     def tagged_union(self, items):
         name = camelize(str(items[0]))
@@ -78,17 +84,25 @@ class BFTransformer(Transformer):
         return {"type": "tag", "name": camelize(str(items[0])), "value": int(items[1])}
 
     def param_list(self, items):
-        print(list(map(str, items)))
         return list(map(str, items))
 
     def field(self, items):
         self.index += int(items[1])
-        return {"type": "field", "name": str(items[0]), "bits": int(items[1]), "offset": self.index}
-
+        return {
+            "type": "field",
+            "name": str(items[0]),
+            "bits": int(items[1]),
+            "offset": self.index,
+        }
 
     def field_high(self, items):
         self.index += int(items[1])
-        return {"type": "field_high", "name": str(items[0]), "bits": int(items[1]), "offset": self.index}
+        return {
+            "type": "field_high",
+            "name": str(items[0]),
+            "bits": int(items[1]),
+            "offset": self.index,
+        }
 
     def padding(self, items):
         self.index += int(items[0])

@@ -228,4 +228,3 @@ block dbg_wcr {
 
 #endif /* CONFIG_HARDWARE_DEBUG_API */
 
-#include <sel4/arch/shared_types.bf>

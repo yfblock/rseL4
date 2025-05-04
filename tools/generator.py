@@ -6,12 +6,10 @@ from parser import BFTransformer, parser
 
 FILE_DIR = path.dirname(path.realpath(__file__))
 
-env = Environment(
-    loader=PackageLoader("templates", ""),
-    autoescape=select_autoescape()
-)
+env = Environment(loader=PackageLoader("templates", ""), autoescape=select_autoescape())
 block_template = env.get_template("block.rs.j2")
 tag_template = env.get_template("tag_union.rs.j2")
+
 
 def getStructure(source_file):
     result = subprocess.run(
@@ -30,9 +28,9 @@ def getStructure(source_file):
     return result.stdout
 
 
-def trans_data(source_file):
+def trans_data(file_data):
     all_data = ""
-    tree = parser.parse(getStructure(source_file))
+    tree = parser.parse(file_data)
     tree = BFTransformer().transform(tree)
     tagged = {}
     for x in tree.children:
@@ -56,5 +54,7 @@ if __name__ == "__main__":
         exit(0)
     source_file = sys.argv[1]
     dest_file = sys.argv[2]
-    data = trans_data(source_file)
+
+    file_data = getStructure(source_file)
+    data = trans_data(file_data)
     open(dest_file, "w+").write(data)
