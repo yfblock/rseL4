@@ -5,7 +5,6 @@ pub mod root_server;
 use crate::{
     arch::{KAddr, KVirtRegion, PhysRegion, VAddr, VirtRegion, PPTR_TOP},
     config::MAX_NUM_BOOTINFO_UNTYPED_CAPS,
-    object::{cap::CapTrait, cspace::CNode},
 };
 use arrayvec::ArrayVec;
 use boot_lock::BootLock;

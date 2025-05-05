@@ -1,16 +1,19 @@
-use super::{VMRights, PAGE_BITS, VSPACE_INDEX_BITS};
+use super::{VMRights, ASID_POOL_INDEX_BITS, PAGE_BITS, VSPACE_INDEX_BITS};
 use crate::{
     arch::{KAddr, VAddr, PPTR_BASE},
-    object::structures::{FrameCap, PageTableCap},
+    object::structures::{AsidMapVSpace, AsidPoolCap, FrameCap, PageTableCap},
 };
 use aarch64_cpu::{
     asm::barrier::{self, dsb},
     registers::{Writeable, TTBR0_EL1, TTBR1_EL1},
 };
 use hal::aarch64::{PTEFlags, PTE};
+use spin::Mutex;
 
 const PTE_LEN: usize = 512;
 type PTEList = [PTE; PTE_LEN];
+
+pub static KS_ASID_TABLE: Mutex<[KAddr; PTE_LEN]> = Mutex::new([KAddr::new(0); PTE_LEN]);
 
 #[repr(align(4096))]
 struct GlobalPageTable {
@@ -86,6 +89,19 @@ pub fn activate_kernel_vspace() {
     TTBR1_EL1.write(TTBR1_EL1::ASID.val(0));
     TTBR1_EL1.set_baddr(kernel_base_addr);
     flush_all();
+}
+
+#[derive(Default, Clone)]
+pub struct AsidPool(KAddr);
+
+impl AsidPool {
+    pub const fn get_pool(&self) -> &mut [AsidMapVSpace; bit!(ASID_POOL_INDEX_BITS)] {
+        self.0.get_mut()
+    }
+
+    pub const fn from_cap(cap: AsidPoolCap) -> Self {
+        Self(ka!(cap.get_asid_pool()))
+    }
 }
 
 #[derive(Default, Clone)]

@@ -1,8 +1,13 @@
 use super::{mem::get_kernel_img_phys_region, NUM_RESERVED_REGIONS};
 use crate::{
     arch::{
-        aarch64::{cpu, gic::init_irqs, vspace::map_kernel_window, PAGE_SIZE},
-        KVirtRegion, PAddr, PhysRegion, VirtRegion,
+        aarch64::{
+            cpu,
+            gic::init_irqs,
+            vspace::{map_kernel_window, AsidPool, KS_ASID_TABLE},
+            PAGE_SIZE,
+        },
+        KVirtRegion, PAddr, PhysRegion, VirtRegion, ASID_POOL_INDEX_BITS, IT_ASID,
     },
     boot::{
         consts::BOOT_INFO_FRAME_BITS, init_free_mem, root_server::RootServerMem, BootInfo,
@@ -10,7 +15,7 @@ use crate::{
     },
     config::MAX_NUM_NODES,
     driver::system_off,
-    object::boot_info::populate_bi_frame,
+    object::{boot_info::populate_bi_frame, structures::AsidMapVSpace},
     platform::{PLAT_MEM_REGIONS, USER_TOP},
 };
 use core::arch::naked_asm;
@@ -138,6 +143,13 @@ extern "C" fn main(
     NDKS_BOOT.bi_frame.get_mut::<BootInfo>().user_image_frames = create_frames_ret.unwrap();
 
     let it_ap_cap = root_cnode.create_it_asid_pool(&mut root_server_mem);
+    // it_ap_cap.get_asid_base()
+    let asid_map_vspace =
+        AsidMapVSpace::empty().with_vspace_root(vspace_cap.get_vs_base_ptr().raw());
+    log::debug!("cap asid base: {:#x}", it_ap_cap.get_asid_pool());
+    todo!("field_high implementation of get asid pool");
+    AsidPool::from_cap(it_ap_cap).get_pool()[IT_ASID] = asid_map_vspace;
+    KS_ASID_TABLE.lock()[IT_ASID >> ASID_POOL_INDEX_BITS] = ka!(it_ap_cap.get_asid_pool());
     todo!("write it asid pool");
     log::debug!("created bi frame");
     system_off();
